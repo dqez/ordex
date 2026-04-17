@@ -6,6 +6,7 @@ import {
   HealthCheckResult,
 } from '@nestjs/terminus';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisHealthIndicator } from './redis.health';
 
 @Controller('health')
 export class HealthController {
@@ -13,12 +14,16 @@ export class HealthController {
     private readonly health: HealthCheckService,
     private readonly prismaHealth: PrismaHealthIndicator,
     private readonly prismaService: PrismaService,
+    private readonly redisHealth: RedisHealthIndicator,
   ) {}
 
   @Get()
   @HealthCheck()
   check(): Promise<HealthCheckResult> {
-    return this.health.check([]);
+    return this.health.check([
+      () => this.prismaHealth.pingCheck('database', this.prismaService),
+      () => this.redisHealth.pingCheck('redis'),
+    ]);
   }
 
   @Get('db')
@@ -27,5 +32,11 @@ export class HealthController {
     return this.health.check([
       () => this.prismaHealth.pingCheck('database', this.prismaService),
     ]);
+  }
+
+  @Get('redis')
+  @HealthCheck()
+  checkRedis(): Promise<HealthCheckResult> {
+    return this.health.check([() => this.redisHealth.pingCheck('redis')]);
   }
 }

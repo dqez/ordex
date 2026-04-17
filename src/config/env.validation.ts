@@ -1,4 +1,11 @@
-import { IsEnum, IsNumber, IsString, Min, validateSync } from 'class-validator';
+import {
+  IsEnum,
+  IsNumber,
+  IsString,
+  Min,
+  MinLength,
+  validateSync,
+} from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 
 enum NodeEnv {
@@ -28,16 +35,27 @@ class EnvironmentVariables {
   REDIS_PORT: number = 6379;
 
   @IsString()
+  @MinLength(32)
   JWT_ACCESS_SECRET: string = '';
 
   @IsString()
   JWT_ACCESS_EXPIRY: string = '15m';
 
   @IsString()
+  @MinLength(32)
   JWT_REFRESH_SECRET: string = '';
 
   @IsString()
   JWT_REFRESH_EXPIRY: string = '7d';
+
+  @IsString()
+  GOOGLE_CLIENT_ID: string = '';
+
+  @IsString()
+  GOOGLE_CLIENT_SECRET: string = '';
+
+  @IsString()
+  GOOGLE_CALLBACK_URL: string = '';
 }
 
 export function validate(config: Record<string, unknown>) {

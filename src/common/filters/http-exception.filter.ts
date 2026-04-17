@@ -57,3 +57,5 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       correlationId: correlationId ?? null,
       timestamp: new Date().toISOString(),
     });
+  }
+}

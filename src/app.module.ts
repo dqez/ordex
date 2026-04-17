@@ -10,35 +10,31 @@ import {
   CorrelationIdMiddleware,
   RequestLoggingMiddleware,
 } from './common/middleware/correlation-id.middleware';
+import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware';
+import { RedisProvider } from './common/redis/redis.provider';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './modules/health/health.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { UserModule } from './modules/user/user.module';
 
 @Module({
   imports: [
-    // Config — global, validates env at startup
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
       validate,
       cache: true,
     }),
-
-    // Logger — global Winston
     WinstonModule.forRoot(winstonConfig),
-
-    // Database
     PrismaModule,
-
-    // Feature modules
     HealthModule,
+    AuthModule,
+    UserModule,
   ],
   providers: [
-    // Global exception filter
-    {
-      provide: APP_FILTER,
-      useClass: GlobalExceptionFilter,
-    },
+    { provide: APP_FILTER, useClass: GlobalExceptionFilter },
+    RedisProvider,
   ],
 })
 export class AppModule implements NestModule {
@@ -46,5 +42,8 @@ export class AppModule implements NestModule {
     consumer
       .apply(CorrelationIdMiddleware, RequestLoggingMiddleware)
       .forRoutes('*');
+    consumer
+      .apply(RateLimitMiddleware)
+      .forRoutes('auth/login', 'auth/register', 'auth/refresh');
   }
 }

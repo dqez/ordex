@@ -1,8 +1,14 @@
-// Extend Express Request to include our custom properties
+import { UserRole } from '@prisma/client';
+
 declare global {
   namespace Express {
     interface Request {
       correlationId?: string;
+      user?: {
+        sub: string;
+        email: string;
+        role: UserRole;
+      };
     }
   }
 }
