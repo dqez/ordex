@@ -65,7 +65,10 @@ describe('AddressService', () => {
 
     it('should unset other default addresses when creating as default', async () => {
       (prisma.address.updateMany as jest.Mock).mockResolvedValue({});
-      (prisma.address.create as jest.Mock).mockResolvedValue({ ...mockAddress, isDefault: true });
+      (prisma.address.create as jest.Mock).mockResolvedValue({
+        ...mockAddress,
+        isDefault: true,
+      });
 
       await service.createAddress('user-uuid-1', {
         fullName: 'Test User',
@@ -86,9 +89,14 @@ describe('AddressService', () => {
   describe('updateAddress', () => {
     it('should update address when user owns it', async () => {
       (prisma.address.findFirst as jest.Mock).mockResolvedValue(mockAddress);
-      (prisma.address.update as jest.Mock).mockResolvedValue({ ...mockAddress, fullName: 'New Name' });
+      (prisma.address.update as jest.Mock).mockResolvedValue({
+        ...mockAddress,
+        fullName: 'New Name',
+      });
 
-      const result = await service.updateAddress('user-uuid-1', 'addr-uuid-1', { fullName: 'New Name' });
+      const result = await service.updateAddress('user-uuid-1', 'addr-uuid-1', {
+        fullName: 'New Name',
+      });
 
       expect(result.fullName).toBe('New Name');
     });
@@ -97,16 +105,23 @@ describe('AddressService', () => {
       (prisma.address.findFirst as jest.Mock).mockResolvedValue(null);
 
       await expect(
-        service.updateAddress('user-uuid-1', 'addr-uuid-1', { fullName: 'New Name' }),
+        service.updateAddress('user-uuid-1', 'addr-uuid-1', {
+          fullName: 'New Name',
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should unset other defaults when updating to default', async () => {
       (prisma.address.findFirst as jest.Mock).mockResolvedValue(mockAddress);
       (prisma.address.updateMany as jest.Mock).mockResolvedValue({});
-      (prisma.address.update as jest.Mock).mockResolvedValue({ ...mockAddress, isDefault: true });
+      (prisma.address.update as jest.Mock).mockResolvedValue({
+        ...mockAddress,
+        isDefault: true,
+      });
 
-      await service.updateAddress('user-uuid-1', 'addr-uuid-1', { isDefault: true });
+      await service.updateAddress('user-uuid-1', 'addr-uuid-1', {
+        isDefault: true,
+      });
 
       expect(prisma.address.updateMany).toHaveBeenCalledWith({
         where: { userId: 'user-uuid-1', isDefault: true },
@@ -122,13 +137,17 @@ describe('AddressService', () => {
 
       await service.deleteAddress('user-uuid-1', 'addr-uuid-1');
 
-      expect(prisma.address.delete).toHaveBeenCalledWith({ where: { id: 'addr-uuid-1' } });
+      expect(prisma.address.delete).toHaveBeenCalledWith({
+        where: { id: 'addr-uuid-1' },
+      });
     });
 
     it('should throw NotFoundException when address not owned by user', async () => {
       (prisma.address.findFirst as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.deleteAddress('user-uuid-1', 'addr-uuid-1')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.deleteAddress('user-uuid-1', 'addr-uuid-1'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -136,9 +155,15 @@ describe('AddressService', () => {
     it('should set address as default and unset others', async () => {
       (prisma.address.findFirst as jest.Mock).mockResolvedValue(mockAddress);
       (prisma.address.updateMany as jest.Mock).mockResolvedValue({});
-      (prisma.address.update as jest.Mock).mockResolvedValue({ ...mockAddress, isDefault: true });
+      (prisma.address.update as jest.Mock).mockResolvedValue({
+        ...mockAddress,
+        isDefault: true,
+      });
 
-      const result = await service.setDefaultAddress('user-uuid-1', 'addr-uuid-1');
+      const result = await service.setDefaultAddress(
+        'user-uuid-1',
+        'addr-uuid-1',
+      );
 
       expect(prisma.address.updateMany).toHaveBeenCalledWith({
         where: { userId: 'user-uuid-1', isDefault: true },
@@ -154,7 +179,9 @@ describe('AddressService', () => {
     it('should throw NotFoundException when address not owned by user', async () => {
       (prisma.address.findFirst as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.setDefaultAddress('user-uuid-1', 'addr-uuid-1')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.setDefaultAddress('user-uuid-1', 'addr-uuid-1'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

@@ -93,7 +93,11 @@ describe('AuthService', () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
 
       await expect(
-        service.register({ email: 'test@example.com', password: 'Password1!', fullName: 'Test User' }),
+        service.register({
+          email: 'test@example.com',
+          password: 'Password1!',
+          fullName: 'Test User',
+        }),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -103,10 +107,16 @@ describe('AuthService', () => {
       (prisma.refreshToken.create as jest.Mock).mockResolvedValue({});
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
 
-      await service.register({ email: 'test@example.com', password: 'Password1!', fullName: 'Test User' });
+      await service.register({
+        email: 'test@example.com',
+        password: 'Password1!',
+        fullName: 'Test User',
+      });
 
       expect(prisma.user.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ role: UserRole.BUYER }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ role: UserRole.BUYER }),
+        }),
       );
     });
   });
@@ -127,19 +137,28 @@ describe('AuthService', () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
-      await expect(service.login('test@example.com', 'wrong-password')).rejects.toThrow(UnauthorizedException);
+      await expect(
+        service.login('test@example.com', 'wrong-password'),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException for non-existent user', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.login('nobody@example.com', 'Password1!')).rejects.toThrow(UnauthorizedException);
+      await expect(
+        service.login('nobody@example.com', 'Password1!'),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException for OAuth user without passwordHash', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue({ ...mockUser, passwordHash: null });
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        ...mockUser,
+        passwordHash: null,
+      });
 
-      await expect(service.login('test@example.com', 'Password1!')).rejects.toThrow(UnauthorizedException);
+      await expect(
+        service.login('test@example.com', 'Password1!'),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 
@@ -148,7 +167,10 @@ describe('AuthService', () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
-      const result = await service.validateUser('test@example.com', 'Password1!');
+      const result = await service.validateUser(
+        'test@example.com',
+        'Password1!',
+      );
 
       expect(result).toEqual(mockUser);
     });
@@ -165,7 +187,10 @@ describe('AuthService', () => {
     it('should return null for non-existent user', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
 
-      const result = await service.validateUser('nobody@example.com', 'Password1!');
+      const result = await service.validateUser(
+        'nobody@example.com',
+        'Password1!',
+      );
 
       expect(result).toBeNull();
     });
@@ -173,7 +198,9 @@ describe('AuthService', () => {
 
   describe('refreshTokens', () => {
     it('should issue new token pair for valid refresh token', async () => {
-      (prisma.refreshToken.findFirst as jest.Mock).mockResolvedValue(mockRefreshToken);
+      (prisma.refreshToken.findFirst as jest.Mock).mockResolvedValue(
+        mockRefreshToken,
+      );
       (prisma.refreshToken.update as jest.Mock).mockResolvedValue({});
       (prisma.refreshToken.create as jest.Mock).mockResolvedValue({});
 
@@ -188,15 +215,21 @@ describe('AuthService', () => {
     it('should throw UnauthorizedException for unknown token', async () => {
       (prisma.refreshToken.findFirst as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.refreshTokens('unknown-token')).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshTokens('unknown-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should revoke entire token family on reuse detection', async () => {
       const revokedToken = { ...mockRefreshToken, isRevoked: true };
-      (prisma.refreshToken.findFirst as jest.Mock).mockResolvedValue(revokedToken);
+      (prisma.refreshToken.findFirst as jest.Mock).mockResolvedValue(
+        revokedToken,
+      );
       (prisma.refreshToken.updateMany as jest.Mock).mockResolvedValue({});
 
-      await expect(service.refreshTokens('reused-token')).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshTokens('reused-token')).rejects.toThrow(
+        UnauthorizedException,
+      );
 
       expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -209,7 +242,9 @@ describe('AuthService', () => {
 
   describe('logout', () => {
     it('should revoke all active refresh tokens for user', async () => {
-      (prisma.refreshToken.updateMany as jest.Mock).mockResolvedValue({ count: 2 });
+      (prisma.refreshToken.updateMany as jest.Mock).mockResolvedValue({
+        count: 2,
+      });
 
       await service.logout('user-uuid-1');
 
@@ -237,7 +272,12 @@ describe('AuthService', () => {
 
     it('should create new user for first-time OAuth login', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-      (prisma.user.create as jest.Mock).mockResolvedValue({ ...mockUser, oauthProvider: 'google', oauthId: 'google-123', isVerified: true });
+      (prisma.user.create as jest.Mock).mockResolvedValue({
+        ...mockUser,
+        oauthProvider: 'google',
+        oauthId: 'google-123',
+        isVerified: true,
+      });
       (prisma.refreshToken.create as jest.Mock).mockResolvedValue({});
 
       const result = await service.findOrCreateOAuthUser({
@@ -248,7 +288,10 @@ describe('AuthService', () => {
 
       expect(prisma.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ oauthProvider: 'google', isVerified: true }),
+          data: expect.objectContaining({
+            oauthProvider: 'google',
+            isVerified: true,
+          }),
         }),
       );
       expect(result.accessToken).toBeDefined();
@@ -256,7 +299,11 @@ describe('AuthService', () => {
 
     it('should throw UnauthorizedException when email is missing', async () => {
       await expect(
-        service.findOrCreateOAuthUser({ email: undefined, fullName: 'No Email', oauthId: 'google-789' }),
+        service.findOrCreateOAuthUser({
+          email: undefined,
+          fullName: 'No Email',
+          oauthId: 'google-789',
+        }),
       ).rejects.toThrow(UnauthorizedException);
     });
   });

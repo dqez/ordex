@@ -36,7 +36,9 @@ describe('UserService', () => {
     it('should throw NotFoundException when user not found', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.findById('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.findById('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -55,16 +57,23 @@ describe('UserService', () => {
     it('should throw NotFoundException when user not found', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.getCurrentUser('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.getCurrentUser('nonexistent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('update', () => {
     it('should update user fields', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.user.update as jest.Mock).mockResolvedValue({ ...mockUser, fullName: 'Updated Name' });
+      (prisma.user.update as jest.Mock).mockResolvedValue({
+        ...mockUser,
+        fullName: 'Updated Name',
+      });
 
-      const result = await service.update('user-uuid-1', { fullName: 'Updated Name' });
+      const result = await service.update('user-uuid-1', {
+        fullName: 'Updated Name',
+      });
 
       expect(result.fullName).toBe('Updated Name');
     });
@@ -72,7 +81,9 @@ describe('UserService', () => {
     it('should throw NotFoundException when user not found', async () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.update('nonexistent', { fullName: 'Name' })).rejects.toThrow(NotFoundException);
+      await expect(
+        service.update('nonexistent', { fullName: 'Name' }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

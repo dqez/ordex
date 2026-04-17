@@ -4,7 +4,11 @@ import { JwtService } from '@nestjs/jwt';
 import { UserRole } from '@prisma/client';
 import { AuthGuard } from './auth.guard';
 
-const mockPayload = { sub: 'user-uuid-1', email: 'test@example.com', role: UserRole.BUYER };
+const mockPayload = {
+  sub: 'user-uuid-1',
+  email: 'test@example.com',
+  role: UserRole.BUYER,
+};
 
 function createMockContext(authHeader?: string): ExecutionContext {
   const request = { headers: { authorization: authHeader }, user: undefined };
@@ -20,7 +24,9 @@ describe('AuthGuard', () => {
 
   beforeEach(() => {
     jwtService = { verify: jest.fn() } as unknown as jest.Mocked<JwtService>;
-    configService = { get: jest.fn(() => 'access-secret') } as unknown as jest.Mocked<ConfigService>;
+    configService = {
+      get: jest.fn(() => 'access-secret'),
+    } as unknown as jest.Mocked<ConfigService>;
     guard = new AuthGuard(jwtService, configService);
   });
 
@@ -51,7 +57,9 @@ describe('AuthGuard', () => {
   });
 
   it('should throw UnauthorizedException when token is invalid', () => {
-    (jwtService.verify as jest.Mock).mockImplementation(() => { throw new Error('invalid'); });
+    (jwtService.verify as jest.Mock).mockImplementation(() => {
+      throw new Error('invalid');
+    });
     const ctx = createMockContext('Bearer invalid-token');
 
     expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
