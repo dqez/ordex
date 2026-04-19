@@ -1,6 +1,7 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { Reflector } from '@nestjs/core';
 import { UserRole } from '@prisma/client';
 import { AuthGuard } from './auth.guard';
 
@@ -14,6 +15,8 @@ function createMockContext(authHeader?: string): ExecutionContext {
   const request = { headers: { authorization: authHeader }, user: undefined };
   return {
     switchToHttp: () => ({ getRequest: () => request }),
+    getHandler: () => ({}),
+    getClass: () => ({}),
   } as unknown as ExecutionContext;
 }
 
@@ -27,7 +30,7 @@ describe('AuthGuard', () => {
     configService = {
       get: jest.fn(() => 'access-secret'),
     } as unknown as jest.Mocked<ConfigService>;
-    guard = new AuthGuard(jwtService, configService);
+    guard = new AuthGuard(jwtService, configService, new Reflector());
   });
 
   it('should return true and attach user for valid Bearer token', () => {

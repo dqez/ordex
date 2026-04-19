@@ -20,12 +20,27 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
-    "typeRoots": ["./node_modules/@types", "./src/common/types"],
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/common/types"
+    ],
     "paths": {
-      "@modules/*": ["src/modules/*"],
-      "@common/*": ["src/common/*"],
-      "@config/*": ["src/config/*"],
-      "@prisma/*": ["src/prisma/*"]
-    }
+      "@modules/*": [
+        "src/modules/*"
+      ],
+      "@common/*": [
+        "src/common/*"
+      ],
+      "@config/*": [
+        "src/config/*"
+      ],
+      "@prisma/*": [
+        "src/prisma/*"
+      ]
+    },
+    "types": [
+      "node",
+      "jest"
+    ]
   }
 }
