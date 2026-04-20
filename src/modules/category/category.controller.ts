@@ -9,18 +9,21 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import { CategoryService } from './category.service';
 import {
   CreateCategoryRequest,
   UpdateCategoryRequest,
 } from './category.service';
+import { AuthGuard } from '@modules/auth/guards/auth.guard';
 
 @Controller('categories')
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @Post()
+  @UseGuards(AuthGuard)
   create(@Body() dto: CreateCategoryRequest) {
     return this.categoryService.create(dto);
   }
@@ -41,6 +44,7 @@ export class CategoryController {
   }
 
   @Patch(':id')
+  @UseGuards(AuthGuard)
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateCategoryRequest,
@@ -49,6 +53,7 @@ export class CategoryController {
   }
 
   @Delete(':id')
+  @UseGuards(AuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   delete(@Param('id', ParseUUIDPipe) id: string) {
     return this.categoryService.delete(id);

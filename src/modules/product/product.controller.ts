@@ -12,6 +12,7 @@ import {
   HttpStatus,
   UseInterceptors,
   UploadedFiles,
+  UseGuards,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ProductService } from './product.service';
@@ -22,8 +23,10 @@ import {
   UpdateVariantRequest,
 } from './product.service';
 import { CurrentUser } from '@common/decorators/current-user.decorator';
+import { AuthGuard } from '@modules/auth/guards/auth.guard';
 
 @Controller('products')
+@UseGuards(AuthGuard)
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
 

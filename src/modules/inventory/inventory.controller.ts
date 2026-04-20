@@ -8,10 +8,13 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthGuard } from '@modules/auth/guards/auth.guard';
 import { InventoryService } from './inventory.service';
 
 @Controller('inventory')
+@UseGuards(AuthGuard)
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
