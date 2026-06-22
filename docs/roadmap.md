@@ -21,12 +21,12 @@
 ## Week 1 — Architecture & Foundation
 
 ### Tasks
-- [x] Design ERD (finalize `database-design.md`)
-- [x] Setup monorepo hoặc single repo structure
-- [x] Initialize NestJS project với TypeScript strict mode
-- [x] Setup Docker Compose: PostgreSQL 16 + Redis 7
-- [x] Configure Prisma ORM + initial migration
-- [x] Setup project structure:
+- [ ] Design ERD (finalize `database-design.md`)
+- [ ] Setup monorepo hoặc single repo structure
+- [ ] Initialize NestJS project với TypeScript strict mode
+- [ ] Setup Docker Compose: PostgreSQL 16 + Redis 7
+- [ ] Configure Prisma ORM + initial migration
+- [ ] Setup project structure:
   ```
   src/
   ├── modules/
@@ -48,10 +48,10 @@
   ├── config/
   └── prisma/
   ```
-- [x] Setup global exception filter
-- [x] Setup Winston structured logging + correlation ID middleware
-- [x] Setup environment configuration (ConfigModule)
-- [x] Write ADR documents
+- [ ] Setup global exception filter
+- [ ] Setup Winston structured logging + correlation ID mid dleware
+- [ ] Setup environment configuration (ConfigModule)
+- [ ] Write ADR documents
 
 ### Definition of Done
 ✅ `docker-compose up` khởi động PG + Redis  
@@ -64,21 +64,21 @@
 ## Week 2 — Auth Module
 
 ### Tasks
-- [x] Implement User entity + Prisma schema
-- [x] Register endpoint (email + password, bcrypt hash)
-- [x] Login endpoint (return JWT access + refresh token)
-- [x] JWT access token (15min expiry)
-- [x] Refresh token rotation:
+- [ ] Implement User entity + Prisma schema
+- [ ] Register endpoint (email + password, bcrypt hash)
+- [ ] Login endpoint (return JWT access + refresh token)
+- [ ] JWT access token (15min expiry)
+- [ ] Refresh token rotation:
   - Issue new refresh + access token
   - Revoke old refresh token
   - Detect token reuse → revoke all family tokens
-- [x] Google OAuth 2.0 (Passport.js strategy)
-- [x] AuthGuard (JWT verification)
-- [x] RolesGuard + `@Roles()` decorator
-- [x] `@Public()` decorator for open endpoints
-- [x] `@CurrentUser()` parameter decorator
-- [x] Rate limiting middleware (Redis sliding window)
-- [x] Address CRUD for user
+- [ ] Google OAuth 2.0 (Passport.js strategy)
+- [ ] AuthGuard (JWT verification)
+- [ ] RolesGuard + `@Roles()` decorator
+- [ ] `@Public()` decorator for open endpoints
+- [ ] `@CurrentUser()` parameter decorator
+- [ ] Rate limiting middleware (Redis sliding window)
+- [ ] Address CRUD for user
 
 ### Definition of Done
 ✅ Register/Login/Refresh/Logout flow hoàn chỉnh  
@@ -92,22 +92,22 @@
 ## Week 3–4 — Product & Inventory
 
 ### Week 3 Tasks
-- [x] Category CRUD (admin only) + nested tree
-- [x] Product CRUD (seller) + soft delete
-- [x] Product Variant CRUD + SKU generation
-- [x] Image upload to Cloudflare R2
-- [x] Product listing API with filters/pagination/sort
-- [x] Full-text search on product name
+- [ ] Category CRUD (admin only) + nested tree
+- [ ] Product CRUD (seller) + soft delete
+- [ ] Product Variant CRUD + SKU generation
+- [ ] Image upload to Cloudflare R2
+- [ ] Product listing API with filters/pagination/sort
+- [ ] Full-text search on product name
 
 ### Week 4 Tasks
-- [x] Inventory table + 1:1 with variant
-- [x] Stock reservation logic (reserve on order)
-- [x] Stock release logic (release on payment fail)
-- [x] **Optimistic locking** implementation:
+- [ ] Inventory table + 1:1 with variant
+- [ ] Stock reservation logic (reserve on order)
+- [ ] Stock release logic (release on payment fail)
+- [ ] **Optimistic locking** implementation:
   - `version` column check on UPDATE
   - Retry on conflict (max 3)
-- [x] Low stock alert (threshold-based)
-- [x] Seed data script (categories + sample products)
+- [ ] Low stock alert (threshold-based)
+- [ ] Seed data script (categories + sample products)
 
 ### Definition of Done
 ✅ Seller can create/edit/delete products + variants
