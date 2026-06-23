@@ -15,6 +15,7 @@ import {
   utilities as nestWinstonModuleUtilities,
 } from 'nest-winston';
 import * as winston from 'winston';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import * as winston from 'winston';
     PaymentModule,
     NotificationModule,
     AnalyticsModule,
+    PrismaModule,
   ],
   controllers: [],
   providers: [],

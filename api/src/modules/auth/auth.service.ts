@@ -1,26 +1,35 @@
-import { Injectable } from '@nestjs/common';
-import { CreateAuthDto } from './dto/create-auth.dto';
-import { UpdateAuthDto } from './dto/update-auth.dto';
+import { ConflictException, Injectable } from '@nestjs/common';
+import { RegisterDto } from './dto/register.dto';
+import { PrismaService } from '../../prisma/prisma.service';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
-  create(createAuthDto: CreateAuthDto) {
-    return 'This action adds a new auth';
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
-    return `This action returns all auth`;
-  }
+  async register(dto: RegisterDto) {
+    const emailExist = await this.prisma.user.findUnique({
+      where: {
+        email: dto.email,
+      },
+    });
 
-  findOne(id: number) {
-    return `This action returns a #${id} auth`;
-  }
+    if (emailExist) {
+      throw new ConflictException('The email has already been used!');
+    }
 
-  update(id: number, updateAuthDto: UpdateAuthDto) {
-    return `This action updates a #${id} auth`;
-  }
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const newUser = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        password_hash: hashedPassword,
+        full_name: dto.fullName,
+        role: dto.role,
+      },
+    });
 
-  remove(id: number) {
-    return `This action removes a #${id} auth`;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password_hash, ...newUserWithoutPassword } = newUser;
+    return newUserWithoutPassword;
   }
 }
