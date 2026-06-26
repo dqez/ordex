@@ -161,4 +161,31 @@ export class AuthService {
 
     return { accessToken, refreshToken: newRefreshToken };
   }
+
+  async logout(refreshTokenRaw: string) {
+    const tokenHash = createHash('sha256')
+      .update(refreshTokenRaw)
+      .digest('hex');
+
+    const storedToken = await this.prisma.refreshToken.findFirst({
+      where: {
+        token_hash: tokenHash,
+      },
+    });
+
+    if (!storedToken) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    await this.prisma.refreshToken.update({
+      where: {
+        id: storedToken.id,
+      },
+      data: {
+        is_revoked: true,
+      },
+    });
+
+    return { message: 'Logged out successfully' };
+  }
 }
