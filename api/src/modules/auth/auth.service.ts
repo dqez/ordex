@@ -8,7 +8,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login.dto';
 import { JwtService } from '@nestjs/jwt';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -71,7 +71,9 @@ export class AuthService {
     const accessToken = this.jwt.sign(payload);
 
     const refreshToken = randomUUID();
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+    const refreshTokenHash = createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
     const familyId = randomUUID();
 
     await this.prisma.refreshToken.create({
@@ -86,5 +88,77 @@ export class AuthService {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password_hash, ...user } = userExist;
     return { user, accessToken, refreshToken };
+  }
+
+  async refresh(refreshTokenRaw: string) {
+    //Hash token for look up
+    const tokenHash = createHash('sha256')
+      .update(refreshTokenRaw)
+      .digest('hex');
+    //Find in db
+    const storedToken = await this.prisma.refreshToken.findFirst({
+      where: {
+        token_hash: tokenHash,
+      },
+    });
+
+    if (!storedToken) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    // Check refreshToken đã revoked chưa? nếu rồi thì user đang reuse freshToken cũ. Update revoked và throw exception.
+    if (storedToken.is_revoked) {
+      await this.prisma.refreshToken.updateMany({
+        where: {
+          family_id: storedToken.family_id,
+        },
+        data: {
+          is_revoked: true,
+        },
+      });
+      throw new UnauthorizedException(
+        'Token reuse detected! All sessions revoked.',
+      );
+    }
+    //check hết hạn
+    if (storedToken.expires_at < new Date()) {
+      throw new UnauthorizedException('Refresh token expired');
+    }
+    //thu hồi (revoke) token cũ
+    await this.prisma.refreshToken.update({
+      where: {
+        id: storedToken.id,
+      },
+      data: {
+        is_revoked: true,
+      },
+    });
+    // tạo token mới - cùng family_id
+    const newRefreshToken = randomUUID();
+    const newTokenHash = createHash('sha256')
+      .update(newRefreshToken)
+      .digest('hex');
+
+    await this.prisma.refreshToken.create({
+      data: {
+        user_id: storedToken.user_id,
+        token_hash: newTokenHash,
+        family_id: storedToken.family_id,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+    // sign access token mới
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: storedToken.user_id,
+      },
+    });
+
+    const accessToken = this.jwt.sign({
+      sub: user!.id,
+      email: user!.email,
+      role: user!.role,
+    });
+
+    return { accessToken, refreshToken: newRefreshToken };
   }
 }
