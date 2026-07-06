@@ -42,4 +42,19 @@ export class AuthController {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
     return req.user;
   }
+
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  googleLogin() {
+    // Passport tự redirect đến Google, hàm này không cần body.
+  }
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleCallback(
+    @Request() req: { user: { id: string; email: string; role: string } },
+  ) {
+    //req.user = result from GoogleStrategy.validate() -> findOrCreateGoofleUser()
+    return this.authService.googleSignIn(req.user);
+  }
 }

@@ -188,4 +188,101 @@ export class AuthService {
 
     return { message: 'Logged out successfully' };
   }
+
+  async findOrCreateGoogleUser(profile: {
+    googleId: string;
+    email: string | undefined;
+    fullName: string;
+    avatarUrl: string | undefined;
+  }) {
+    if (!profile.email) {
+      throw new UnauthorizedException('Google account has no email');
+    }
+
+    const existingByOAuth = await this.prisma.user.findUnique({
+      where: {
+        oauth_provider_oauth_id: {
+          oauth_provider: 'google',
+          oauth_id: profile.googleId,
+        },
+      },
+    });
+
+    if (existingByOAuth) {
+      if (!existingByOAuth.is_active) {
+        throw new UnauthorizedException('Account is disabled');
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { password_hash, ...user } = existingByOAuth;
+      return user;
+    }
+
+    const existingByEmail = await this.prisma.user.findUnique({
+      where: {
+        email: profile.email,
+      },
+    });
+
+    if (existingByEmail) {
+      if (!existingByEmail.is_active) {
+        throw new UnauthorizedException('Account is disabled');
+      }
+
+      const updated = await this.prisma.user.update({
+        where: { id: existingByEmail.id },
+        data: {
+          oauth_provider: 'google',
+          oauth_id: profile.googleId,
+          avatar_url: existingByEmail.avatar_url ?? profile.avatarUrl,
+          is_verified: true,
+        },
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { password_hash, ...user } = updated;
+      return user;
+    }
+
+    const newUser = await this.prisma.user.create({
+      data: {
+        email: profile.email,
+        full_name: profile.fullName,
+        avatar_url: profile.avatarUrl,
+        oauth_provider: 'google',
+        oauth_id: profile.googleId,
+        password_hash: null,
+        is_verified: true,
+      },
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password_hash, ...user } = newUser;
+    return user;
+  }
+
+  async googleSignIn(user: { id: string; email: string; role: string }) {
+    const accessToken = this.jwt.sign({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    const refreshToken = randomUUID();
+    const refreshTokenHash = createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
+    const familyId = randomUUID();
+
+    await this.prisma.refreshToken.create({
+      data: {
+        user_id: user.id,
+        token_hash: refreshTokenHash,
+        family_id: familyId,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    return { user, accessToken, refreshToken };
+  }
 }
