@@ -7,7 +7,7 @@ import { OrderModule } from './modules/order/order.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as Joi from 'joi';
 import { CorrelationIdMiddleware } from './common/middlewares/correlation-id.middleware';
 import {
@@ -19,6 +19,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 
 @Module({
   imports: [
@@ -56,6 +58,26 @@ import { RolesGuard } from './common/guards/roles.guard';
         // }),
       ],
     }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            name: 'short',
+            ttl: 1000,
+            limit: 3,
+          },
+          {
+            name: 'medium',
+            ttl: 60000,
+            limit: 60,
+          },
+        ],
+        storage: new ThrottlerStorageRedisService(
+          config.getOrThrow<string>('REDIS_URL'),
+        ),
+      }),
+    }),
     ProductModule,
     AuthModule,
     UserModule,
@@ -70,6 +92,7 @@ import { RolesGuard } from './common/guards/roles.guard';
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard }, //guard1: jwt auth - default for all route need auth
     { provide: APP_GUARD, useClass: RolesGuard }, //guard2: roles check, run after jwt guard
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule implements NestModule {

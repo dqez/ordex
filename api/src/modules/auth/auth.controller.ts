@@ -13,6 +13,7 @@ import { RefreshDto } from './dto/refresh.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController {
@@ -24,6 +25,7 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
+  @Throttle({ medium: { ttl: 60000, limit: 5 } }) //customize medium's LIMIT for this route
   @Public()
   @Post('login')
   login(@Body() dto: LoginDto) {
@@ -36,6 +38,7 @@ export class AuthController {
     return this.authService.refresh(dto.refreshToken);
   }
 
+  @SkipThrottle() // skip rate limit for this route
   @Post('logout')
   logout(@Body() dto: RefreshDto) {
     return this.authService.logout(dto.refreshToken);
