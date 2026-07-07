@@ -1,7 +1,7 @@
 # Development Log - Week 2: Auth Module & Prisma v7 Migration
 
-> **Mục tiêu:** Xây dựng chức năng Đăng ký (Register) với Validation, Password Hashing, và kết nối Database thật qua Prisma.
-> **Trạng thái:** Đang tiến hành (~40% Auth Module — Register xong, Login chưa bắt đầu)
+> **Mục tiêu:** Xây dựng hoàn chỉnh Auth Module (Register, Login, JWT, OAuth, RBAC, Rate Limiting) và Address CRUD.
+> **Trạng thái:** Hoàn thành (100%)
 
 ## 1. Hành động đã thực hiện & Thư viện đã cài đặt
 
@@ -39,6 +39,87 @@
 
 ### 1.6 Global Prefix
 - Thêm `app.setGlobalPrefix('api/v1')` trong `main.ts` theo đúng API Specification.
+
+### 1.7 Login + JWT Token
+- Cài đặt: `npm install @nestjs/jwt`
+- Tạo `login.dto.ts` với `@IsEmail()` + `@IsString()` + `@MinLength(8)`.
+- Cấu hình `JwtModule.registerAsync()` trong `auth.module.ts`:
+  - Dùng `ConfigService.getOrThrow()` để đọc `JWT_SECRET` (fail-fast nếu thiếu).
+  - Cast `expiresIn` sang `StringValue` (type từ thư viện `ms`).
+- Luồng `login()`:
+  1. `findUnique` email → không có → `UnauthorizedException`.
+  2. Check `password_hash` nullable (OAuth user không có password) → throw nếu null.
+  3. `bcrypt.compare()` → sai → `UnauthorizedException`.
+  4. `jwt.sign({ sub, email, role })` → `accessToken` (15 phút).
+  5. Sinh `refreshToken` (UUID) → hash SHA-256 → lưu vào bảng `refresh_tokens` với `family_id` + `expires_at` (7 ngày).
+  6. Sanitize response → trả `{ user, accessToken, refreshToken }`.
+- **Bài học:** Dùng **SHA-256** (deterministic) cho refresh token, không dùng bcrypt. Lý do: cần lookup token trong DB bằng hash. bcrypt dành cho password (cần chậm). Refresh token là UUID entropy cao, SHA-256 đủ an toàn.
+
+### 1.8 Refresh Token Rotation
+- Tạo `refresh.dto.ts` với `@IsString()` + `@IsNotEmpty()`.
+- Luồng `refresh()` — Token Rotation with Family Tracking:
+  1. SHA-256 hash token gửi lên → lookup trong DB.
+  2. Không tìm thấy → `401`.
+  3. **Token reuse detected** (đã revoke rồi mà vẫn dùng) → `updateMany` revoke TOÀN BỘ tokens cùng `family_id` → `401`. Đây là cơ chế bảo vệ: nếu hacker đánh cắp token cũ, cả hệ thống token của user bị khóa.
+  4. Check hết hạn → `401` nếu expired.
+  5. Revoke token cũ → tạo token mới **cùng `family_id`** (kế thừa dòng họ).
+  6. Sign access token mới → trả về `{ accessToken, refreshToken }`.
+
+### 1.9 Logout
+- Luồng `logout()`: Hash token → tìm trong DB → revoke (`is_revoked = true`).
+- Dùng lại `RefreshDto` vì body giống nhau.
+- Route yêu cầu auth (không có `@Public()`).
+
+### 1.10 Google OAuth 2.0 (Passport.js)
+- Cài đặt: `npm install passport-google-oauth20 @nestjs/passport passport passport-jwt`
+- Cài dev: `npm install --save-dev @types/passport-google-oauth20 @types/passport-jwt`
+- Tạo `google.strategy.ts` extends `PassportStrategy(Strategy, 'google')`:
+  - Config: `clientID`, `clientSecret`, `callbackURL` từ env.
+  - `scope: ['email', 'profile']`.
+  - `validate()` — không dùng `done` callback (kiểu cũ), dùng `return` trực tiếp (`@nestjs/passport` tự xử lý).
+- Tạo `findOrCreateGoogleUser()` — handle 5 edge cases:
+  1. Google không trả email → throw.
+  2. Account bị ban (`is_active = false`) → throw.
+  3. User đã login Google trước (có `oauth_id`) → trả về.
+  4. Email đã tồn tại (đăng ký email/password) → **Account Merging**: link OAuth vào account cũ, cập nhật `avatar_url`, set `is_verified = true`.
+  5. User mới hoàn toàn → tạo account với `password_hash: null`, `is_verified: true`.
+- Tạo `googleSignIn()` — sign JWT + tạo refresh token (giống login flow).
+- Thêm Authorized redirect URI trên Google Cloud Console: `http://localhost:3000/api/v1/auth/google/callback`.
+
+### 1.11 JWT Guard + @Public() + @CurrentUser() + @Roles() Decorators
+- **JwtStrategy** (`jwt.strategy.ts`): verify token, decode payload → gắn `req.user = { id, email, role }`.
+- **JwtAuthGuard** (`common/guards/jwt-auth.guard.ts`): extends `AuthGuard('jwt')`, check metadata `@Public()` → nếu public thì skip auth.
+- **RolesGuard** (`common/guards/roles.guard.ts`): đọc metadata `@Roles()`, check `user.role` có nằm trong danh sách không.
+- **Global guards** đăng ký trong `app.module.ts` theo thứ tự:
+  1. `JwtAuthGuard` — mọi route mặc định cần JWT (trừ `@Public()`).
+  2. `RolesGuard` — kiểm tra role.
+  3. `ThrottlerGuard` — rate limiting.
+- **3 Custom Decorators:**
+  - `@Public()` — đánh dấu endpoint không cần auth.
+  - `@Roles('seller', 'admin')` — chỉ role nhất định mới truy cập.
+  - `@CurrentUser()` — type-safe thay cho `req.user`, dùng `getRequest<AuthenticatedRequest>()` generic.
+- **Type-safe pattern:** Tạo `AuthenticatedUser` + `AuthenticatedRequest` interfaces, export từ `current-user.decorator.ts` → dùng chung ở `roles.guard.ts`, controller → xóa sạch `// eslint-disable`.
+
+### 1.12 Rate Limiting (Redis Sliding Window)
+- Cài đặt: `npm install @nestjs/throttler @nest-lab/throttler-storage-redis ioredis`
+- Cấu hình `ThrottlerModule.forRootAsync()` trong `app.module.ts`:
+  - 2 throttlers: `short` (3 req/giây) + `medium` (60 req/phút).
+  - Storage: `ThrottlerStorageRedisService` kết nối Redis qua `REDIS_URL` env.
+  - Dùng `forRootAsync` + `ConfigService` thay vì hardcode URL.
+- Custom rate limit trên login: `@Throttle({ medium: { ttl: 60000, limit: 5 } })` — chỉ 5 lần login/phút (chống brute-force).
+- Skip rate limit cho logout: `@SkipThrottle()`.
+
+### 1.13 Address CRUD
+- Đặt trong User module vì address thuộc về user.
+- Controller: `@Controller('users/me/addresses')` — RESTful nested resource.
+- DTO: `CreateAddressDto` (class-validator) + `UpdateAddressDto` (extends `PartialType`).
+- Service:
+  - `create()` — Nếu `isDefault = true` → bỏ default cũ trước (chỉ 1 address default).
+  - `findAll()` — Sort: default trước, mới nhất trước.
+  - `update()` — Check ownership (`user_id: userId`) → `NotFoundException` nếu không thuộc về user.
+  - `remove()` — Check ownership → delete.
+- Dùng `ParseUUIDPipe` cho `:id` param → validate UUID format tự động.
+- Dùng `@CurrentUser()` decorator → user chỉ truy cập address **của chính mình**.
 
 ---
 
@@ -96,6 +177,31 @@
 - **Ngữ cảnh:** TypeScript 6.x cảnh báo `moduleResolution: "node"` sẽ bị xóa ở TS 7.0.
 - **Cách fix:** Thêm `"ignoreDeprecations": "6.0"` vào `tsconfig.json`. NestJS vẫn cần `commonjs` + `node` nên chấp nhận suppress warning này.
 
+### 2.5 [Nullable password_hash] `Type 'string | null' is not assignable to type 'string'`
+- **Ngữ cảnh:** `bcrypt.compare(dto.password, userExist.password_hash)` báo lỗi type.
+- **Nguyên nhân:** Schema định nghĩa `password_hash String?` (nullable) vì OAuth user không có password. Prisma type nó là `string | null`, nhưng `bcrypt.compare()` yêu cầu `string`.
+- **Cách fix:** Thêm check `if (!userExist.password_hash)` TRƯỚC `bcrypt.compare()`. Vừa bảo vệ logic (OAuth user không login bằng password), vừa thu hẹp type cho TypeScript.
+
+### 2.6 [Google OAuth Typo] `GOOOGLE_CALLBACK_URL`
+- **Ngữ cảnh:** App crash khi start vì `getOrThrow` không tìm thấy env key.
+- **Nguyên nhân:** Typo 3 chữ O thay vì 2: `GOOOGLE_CALLBACK_URL` → `GOOGLE_CALLBACK_URL`.
+- **Kinh nghiệm:** `getOrThrow` giúp phát hiện lỗi typo ngay khi start (fail-fast), thay vì runtime undefined.
+
+### 2.7 [ESLint unsafe warnings] `@typescript-eslint/no-unsafe-*` trên `req.user`
+- **Ngữ cảnh:** `context.switchToHttp().getRequest()` trả về `any`, gây hàng loạt eslint warnings.
+- **Cách fix ban đầu:** Dùng `// eslint-disable` — nhìn dirty.
+- **Cách fix đúng:** Tạo `AuthenticatedUser` + `AuthenticatedRequest` interfaces, dùng generic `getRequest<AuthenticatedRequest>()` → type-safe hoàn toàn, xóa sạch mọi eslint-disable.
+
+### 2.8 [Package name sai] `@nestjs/throttler-storage-redis` → 404
+- **Ngữ cảnh:** `npm install @nestjs/throttler-storage-redis` trả 404 Not Found.
+- **Nguyên nhân:** Package không thuộc `@nestjs` scope. Tên đúng là `@nest-lab/throttler-storage-redis`.
+- **Kinh nghiệm:** Luôn verify package name trên npmjs.com trước khi install.
+
+### 2.9 [Throttle decorator API sai] `'name' does not exist in type ThrottlerMethodOrControllerOptions`
+- **Ngữ cảnh:** `@Throttle([{ name: 'medium', ttl: 60000, limit: 5 }])` báo lỗi type.
+- **Nguyên nhân:** API `@nestjs/throttler` v5+ dùng object keyed by name, không phải array.
+- **Cách fix:** `@Throttle({ medium: { ttl: 60000, limit: 5 } })` — key là tên throttler.
+
 ---
 
 ## 3. Trạng thái file đã sửa / tạo mới
@@ -106,13 +212,28 @@
 | `prisma.config.ts` | Giữ nguyên | Đã có từ Week 1 |
 | `src/generated/prisma/` | Tự sinh | `npx prisma generate` → output CJS |
 | `src/prisma/prisma.service.ts` | Sửa lớn | Import từ generated, dùng `PrismaPg` adapter |
-| `src/modules/auth/dto/register.dto.ts` | Tạo mới | class-validator decorators |
-| `src/modules/auth/auth.service.ts` | Sửa | Logic register: check email, hash, create, sanitize |
-| `src/modules/auth/auth.controller.ts` | Sửa | Dọn CRUD → chỉ giữ `@Post('register')` |
-| `src/modules/auth/auth.module.ts` | Sửa nhẹ | Dọn imports thừa |
-| `src/main.ts` | Sửa | Thêm `setGlobalPrefix('api/v1')` |
+| `src/main.ts` | Sửa | `setGlobalPrefix('api/v1')` |
 | `tsconfig.json` | Sửa | `commonjs` + `node` + `ignoreDeprecations: "6.0"` |
-| `package.json` | Sửa | Thêm dependencies: bcrypt, class-validator, pg, adapter-pg |
+| `.env` | Sửa | Thêm `JWT_SECRET`, `JWT_EXPIRES_IN`, `GOOGLE_*`, `REDIS_URL` |
+| `src/modules/auth/dto/register.dto.ts` | Tạo mới | class-validator decorators |
+| `src/modules/auth/dto/login.dto.ts` | Tạo mới | email + password validation |
+| `src/modules/auth/dto/refresh.dto.ts` | Tạo mới | refreshToken validation |
+| `src/modules/auth/auth.service.ts` | Sửa lớn | register, login, refresh, logout, findOrCreateGoogleUser, googleSignIn |
+| `src/modules/auth/auth.controller.ts` | Sửa lớn | 7 routes: register, login, refresh, logout, me, google, google/callback |
+| `src/modules/auth/auth.module.ts` | Sửa | JwtModule, JwtStrategy, GoogleStrategy |
+| `src/modules/auth/jwt.strategy.ts` | Tạo mới | JWT token verification |
+| `src/modules/auth/google.strategy.ts` | Tạo mới | Google OAuth passport strategy |
+| `src/common/decorators/public.decorator.ts` | Tạo mới | `@Public()` skip auth |
+| `src/common/decorators/roles.decorator.ts` | Tạo mới | `@Roles('seller')` |
+| `src/common/decorators/current-user.decorator.ts` | Tạo mới | `@CurrentUser()` + interfaces |
+| `src/common/guards/jwt-auth.guard.ts` | Tạo mới | Global JWT guard with @Public() support |
+| `src/common/guards/roles.guard.ts` | Tạo mới | Role-based access control |
+| `src/app.module.ts` | Sửa | Global guards (JWT → Roles → Throttler), ThrottlerModule |
+| `src/modules/user/dto/create-address.dto.ts` | Tạo mới | Address validation |
+| `src/modules/user/dto/update-address.dto.ts` | Tạo mới | PartialType extends CreateAddress |
+| `src/modules/user/address.controller.ts` | Tạo mới | CRUD `/users/me/addresses` |
+| `src/modules/user/address.service.ts` | Tạo mới | Address business logic + ownership check |
+| `src/modules/user/user.module.ts` | Sửa | Thêm AddressController + AddressService |
 
 ---
 
@@ -121,7 +242,22 @@
 ```bash
 # Production
 npm install bcrypt class-validator class-transformer @prisma/adapter-pg pg
+npm install @nestjs/jwt
+npm install @nestjs/passport passport passport-jwt passport-google-oauth20
+npm install @nestjs/throttler @nest-lab/throttler-storage-redis ioredis
 
 # Development
-npm install --save-dev @types/bcrypt @types/pg
+npm install --save-dev @types/bcrypt @types/pg @types/passport-jwt @types/passport-google-oauth20
 ```
+
+---
+
+## 5. Definition of Done (từ Roadmap)
+
+| Tiêu chí | Trạng thái |
+|----------|-----------|
+| ✅ Register/Login/Refresh/Logout flow hoàn chỉnh | ✅ Đã test Postman |
+| ✅ Google OAuth login works | ✅ Đã test qua browser |
+| ✅ Protected routes return 401 without token | ✅ Global JwtAuthGuard |
+| ✅ Role-based access works (buyer vs seller vs admin) | ✅ RolesGuard + @Roles() |
+| ✅ Rate limiting blocks after threshold | ✅ Throttler + Redis storage |
