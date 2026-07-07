@@ -11,21 +11,26 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { Public } from '../../common/decorators/public.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Public()
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
+  @Public()
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
 
+  @Public()
   @Post('refresh')
   refresh(@Body() dto: RefreshDto) {
     return this.authService.refresh(dto.refreshToken);
@@ -36,19 +41,19 @@ export class AuthController {
     return this.authService.logout(dto.refreshToken);
   }
 
-  @UseGuards(AuthGuard('jwt'))
   @Get('me')
-  getMe(@Request() req) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
-    return req.user;
+  getMe(@CurrentUser() user: { id: string; email: string; role: string }) {
+    return user;
   }
 
+  @Public()
   @Get('google')
   @UseGuards(AuthGuard('google'))
   googleLogin() {
     // Passport tự redirect đến Google, hàm này không cần body.
   }
 
+  @Public()
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   async googleCallback(

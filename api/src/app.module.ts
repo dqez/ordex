@@ -16,6 +16,9 @@ import {
 } from 'nest-winston';
 import * as winston from 'winston';
 import { PrismaModule } from './prisma/prisma.module';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
 
 @Module({
   imports: [
@@ -64,7 +67,10 @@ import { PrismaModule } from './prisma/prisma.module';
     PrismaModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard }, //guard1: jwt auth - default for all route need auth
+    { provide: APP_GUARD, useClass: RolesGuard }, //guard2: roles check, run after jwt guard
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
