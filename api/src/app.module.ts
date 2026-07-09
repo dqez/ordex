@@ -21,6 +21,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import { CategoryModule } from './modules/category/category.module';
 
 @Module({
   imports: [
@@ -87,6 +88,7 @@ import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis'
     NotificationModule,
     AnalyticsModule,
     PrismaModule,
+    CategoryModule,
   ],
   controllers: [],
   providers: [
