@@ -1,10 +1,8 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsInt,
   IsNotEmpty,
   IsNumber,
-  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -12,30 +10,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-
-export class CreateVariantDto {
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
-  name!: string;
-
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(50)
-  sku!: string;
-
-  @IsNumber()
-  @Min(0)
-  price!: number;
-
-  @IsObject()
-  @IsOptional()
-  attributes?: Record<string, any>;
-
-  @IsInt()
-  @Min(0)
-  initialStock!: number;
-}
+import { CreateVariantDto } from './create-variant.dto';
 
 export class CreateProductDto {
   @IsString()

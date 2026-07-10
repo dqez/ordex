@@ -17,6 +17,8 @@ import {
   CurrentUser,
 } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { CreateVariantDto } from './dto/create-variant.dto';
+import { UpdateVariantDto } from './dto/update-variant.dto';
 
 @Controller('products')
 export class ProductController {
@@ -66,5 +68,44 @@ export class ProductController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.productService.remove(id, user.id);
+  }
+
+  //Variant endpoints
+
+  @Public()
+  @Get(':id/variants')
+  getVariants(@Param('id', ParseUUIDPipe) id: string) {
+    return this.productService.getVariants(id);
+  }
+
+  @Roles('seller')
+  @Post(':id/variants')
+  addVariant(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateVariantDto,
+  ) {
+    return this.productService.addVariant(id, user.id, dto);
+  }
+
+  @Roles('seller')
+  @Patch(':id/variants/:variantId')
+  updateVariant(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('variantId', ParseUUIDPipe) variantId: string,
+    @Body() dto: UpdateVariantDto,
+  ) {
+    return this.productService.updateVariant(id, variantId, user.id, dto);
+  }
+
+  @Roles('seller')
+  @Delete(':id/variants/:variantId')
+  removeVariant(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('variantId', ParseUUIDPipe) variantId: string,
+  ) {
+    return this.productService.removeVariant(id, variantId, user.id);
   }
 }

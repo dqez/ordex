@@ -8,6 +8,9 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import slugify from 'slugify';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { generateSku } from '../../common/utils/sku-generation.util';
+import { CreateVariantDto } from './dto/create-variant.dto';
+import { UpdateVariantDto } from './dto/update-variant.dto';
 
 @Injectable()
 export class ProductService {
@@ -44,7 +47,7 @@ export class ProductService {
           productVariants: {
             create: dto.variants.map((v) => ({
               name: v.name,
-              sku: v.sku,
+              sku: v.sku || generateSku(dto.name, v.attributes),
               price: v.price,
               attributes: v.attributes ?? {},
               inventory: {
@@ -167,5 +170,120 @@ export class ProductService {
     });
 
     return { message: 'Product soft deleted successfully' };
+  }
+
+  //Variant management
+
+  async getVariants(productId: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, is_deleted: false },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+
+    return this.prisma.productVariant.findMany({
+      where: { product_id: productId, is_active: true },
+      include: { inventory: true },
+    });
+  }
+
+  async addVariant(productId: string, sellerId: string, dto: CreateVariantDto) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, is_deleted: false },
+    });
+
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.seller_id !== sellerId) {
+      throw new ForbiddenException(
+        'You can only add variants to your own product',
+      );
+    }
+
+    const sku = dto.sku || generateSku(product.name, dto.attributes);
+
+    const existingSku = await this.prisma.productVariant.findUnique({
+      where: { sku },
+    });
+    if (existingSku) throw new ConflictException(`SKU ${sku} already exists`);
+
+    return this.prisma.$transaction(async (tx) => {
+      return tx.productVariant.create({
+        data: {
+          product_id: productId,
+          name: dto.name,
+          sku,
+          price: dto.price,
+          attributes: dto.attributes ?? {},
+          inventory: {
+            create: { quantity: dto.initialStock },
+          },
+        },
+        include: { inventory: true },
+      });
+    });
+  }
+
+  async updateVariant(
+    productId: string,
+    variantId: string,
+    sellerId: string,
+    dto: UpdateVariantDto,
+  ) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, is_deleted: false },
+    });
+
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.seller_id !== sellerId) {
+      throw new ForbiddenException('Not your product');
+    }
+
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { id: variantId, product_id: productId },
+    });
+
+    if (!variant) throw new NotFoundException('Variant not found');
+
+    const data: Record<string, unknown> = {};
+    if (dto.name) data.name = dto.name;
+    if (dto.price !== undefined) data.price = dto.price;
+    if (dto.attributes) data.attributes = dto.attributes;
+    if (dto.isActive !== undefined) data.is_active = dto.isActive;
+
+    if (dto.sku && dto.sku !== variant.sku) {
+      const existingSku = await this.prisma.productVariant.findUnique({
+        where: { sku: dto.sku },
+      });
+      if (existingSku)
+        throw new ConflictException(`SKU ${dto.sku} already exists`);
+      data.sku = dto.sku;
+    }
+
+    return this.prisma.productVariant.update({
+      where: { id: variantId },
+      data,
+    });
+  }
+
+  async removeVariant(productId: string, variantId: string, sellerId: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, is_deleted: false },
+    });
+
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.seller_id !== sellerId)
+      throw new ForbiddenException('Not your product');
+
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { id: variantId, product_id: productId },
+    });
+
+    if (!variant) throw new NotFoundException('Variant not found');
+
+    await this.prisma.productVariant.update({
+      where: { id: variantId },
+      data: { is_active: false },
+    });
+
+    return { message: 'Variant disabled successfully' };
   }
 }
