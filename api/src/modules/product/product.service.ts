@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -11,10 +12,17 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { generateSku } from '../../common/utils/sku-generation.util';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { UpdateVariantDto } from './dto/update-variant.dto';
+import { StorageService } from '../../storage/storage.service';
+import { ImageService } from '../../storage/image.service';
+import 'multer';
 
 @Injectable()
 export class ProductService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+    private readonly image: ImageService,
+  ) {}
 
   async create(sellerId: string, dto: CreateProductDto) {
     const slug = slugify(dto.name, { lower: true, strict: true });
@@ -285,5 +293,124 @@ export class ProductService {
     });
 
     return { message: 'Variant disabled successfully' };
+  }
+
+  //Image management
+
+  async updateImages(
+    productId: string,
+    sellerId: string,
+    files: Express.Multer.File[],
+  ) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, is_deleted: false },
+      include: { productImages: true },
+    });
+
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.seller_id !== sellerId)
+      throw new ForbiddenException('Not your product');
+
+    if (product.productImages.length + files.length > 5) {
+      throw new BadRequestException('A product can only have up to 5 images');
+    }
+
+    const uploadPromises = files.map(async (file, index) => {
+      const { buffer, fileName, mimeType } = await this.image.optimizeImage(
+        file.buffer,
+        file.originalname,
+      );
+
+      const fileUrl = await this.storage.uploadFile(
+        buffer,
+        `products/${productId}/${fileName}`,
+        mimeType,
+      );
+
+      return {
+        url: fileUrl,
+        is_primary: product.productImages.length === 0 && index === 0,
+      };
+    });
+
+    const uploadedImages = await Promise.all(uploadPromises);
+
+    await this.prisma.productImage.createMany({
+      data: uploadedImages.map((img) => ({
+        product_id: productId,
+        url: img.url,
+        is_primary: img.is_primary,
+      })),
+    });
+
+    return { message: 'Images uploaded successfully' };
+  }
+
+  async removeImage(productId: string, imageId: string, sellerId: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, is_deleted: false },
+    });
+
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.seller_id !== sellerId)
+      throw new ForbiddenException('Not your product');
+
+    const image = await this.prisma.productImage.findFirst({
+      where: { id: imageId, product_id: productId },
+    });
+
+    if (!image) throw new NotFoundException('Image not found');
+
+    await this.storage.deleteFile(image.url);
+
+    await this.prisma.productImage.delete({
+      where: { id: imageId },
+    });
+
+    if (image.is_primary) {
+      const remainingImages = await this.prisma.productImage.findMany({
+        where: { product_id: productId },
+        orderBy: { created_at: 'asc' },
+        take: 1,
+      });
+
+      if (remainingImages.length > 0) {
+        await this.prisma.productImage.update({
+          where: { id: remainingImages[0].id },
+          data: { is_primary: true },
+        });
+      }
+    }
+
+    return { message: 'Image removed successfully' };
+  }
+
+  async setPrimaryImage(productId: string, imageId: string, sellerId: string) {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, is_deleted: false },
+    });
+
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.seller_id !== sellerId)
+      throw new ForbiddenException('Not your product');
+
+    const image = await this.prisma.productImage.findFirst({
+      where: { id: imageId, product_id: productId },
+    });
+
+    if (!image) throw new NotFoundException('Image not found');
+
+    await this.prisma.$transaction([
+      this.prisma.productImage.updateMany({
+        where: { product_id: productId, id: { not: imageId } },
+        data: { is_primary: false },
+      }),
+      this.prisma.productImage.update({
+        where: { id: imageId },
+        data: { is_primary: true },
+      }),
+    ]);
+
+    return { message: 'Primary image updated successfully' };
   }
 }

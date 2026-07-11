@@ -22,6 +22,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { CategoryModule } from './modules/category/category.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -89,6 +90,7 @@ import { CategoryModule } from './modules/category/category.module';
     AnalyticsModule,
     PrismaModule,
     CategoryModule,
+    StorageModule,
   ],
   controllers: [],
   providers: [

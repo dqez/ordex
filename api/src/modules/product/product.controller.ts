@@ -7,6 +7,11 @@ import {
   Param,
   Delete,
   ParseUUIDPipe,
+  UseInterceptors,
+  UploadedFiles,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
 } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -19,6 +24,7 @@ import {
 import { Public } from '../../common/decorators/public.decorator';
 import { CreateVariantDto } from './dto/create-variant.dto';
 import { UpdateVariantDto } from './dto/update-variant.dto';
+import { FilesInterceptor } from '@nestjs/platform-express';
 
 @Controller('products')
 export class ProductController {
@@ -107,5 +113,46 @@ export class ProductController {
     @Param('variantId', ParseUUIDPipe) variantId: string,
   ) {
     return this.productService.removeVariant(id, variantId, user.id);
+  }
+
+  //Image endpoints
+
+  @Roles('seller')
+  @Post(':id/images')
+  @UseInterceptors(FilesInterceptor('images', 5))
+  uploadImages(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFiles(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
+          new FileTypeValidator({ fileType: '.(png|jpeg|jpg|webp)' }),
+        ],
+      }),
+    )
+    files: Express.Multer.File[],
+  ) {
+    return this.productService.updateImages(id, user.id, files);
+  }
+
+  @Roles('seller')
+  @Delete(':id/images/:imageId')
+  removeImage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('imageId', ParseUUIDPipe) imageId: string,
+  ) {
+    return this.productService.removeImage(id, imageId, user.id);
+  }
+
+  @Roles('seller')
+  @Patch(':id/images/:imageId/primary')
+  setPrimaryImage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('imageId', ParseUUIDPipe) imageId: string,
+  ) {
+    return this.productService.setPrimaryImage(id, imageId, user.id);
   }
 }

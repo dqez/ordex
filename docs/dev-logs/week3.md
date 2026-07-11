@@ -94,3 +94,39 @@ private buildTree(categories: {
   ```typescript
   function buildTree<T extends { id: string; parent_id: string | null }>(categories: T[]) { ... }
   ```
+
+### 1.4 Product Image & Storage Module (MinIO)
+- **Tách biệt Storage Module (Clean Architecture):** Thay vì viết chung logic xử lý file vào `ProductModule`, chúng ta đã tạo một `StorageModule` global độc lập.
+  - `StorageService`: Chuyên giao tiếp với AWS S3 (và MinIO qua `forcePathStyle: true`).
+  - `ImageService`: Sử dụng thư viện `sharp` để resize ảnh (1000x1000), nén 80% và chuyển về `.webp`. Tách riêng nghiệp vụ xử lý ảnh khỏi logic upload.
+- **Tối ưu hóa Upload Concurrent:** Sử dụng `Promise.all` cùng `map` thay vì vòng lặp `for...of` để upload song song (concurrent) nhiều ảnh cùng lúc, tối đa hóa thông lượng mạng.
+- **Xử lý File Input tại Boundary:** Sử dụng `ParseFilePipe` của NestJS ở Controller để chặn ngay các file sai định dạng hoặc vượt quá dung lượng (5MB) trước khi request chạm vào Service.
+
+---
+
+## 3. Bài học xương máu (Bugs & Cạm bẫy)
+
+> *"Ai làm dev mà không một lần lỡ tay đè biến (shadow), gọi nhầm API S3 hay cãi nhau với TypeScript?"* - Dưới đây là những lỗi thực tế đã gặp và khắc phục trong tuần này.
+
+### 3.1 Cạm bẫy Prisma Type Mismatch (JsonNull)
+Khi dùng `Prisma.ProductVariantUpdateInput`, trình biên dịch đôi lúc báo lỗi đỏ chót liên quan đến `JsonNull` vs `JsonNullClass` do Prisma gen type đôi khi bị xung đột.
+- **Giải pháp 1 (Tạm thời):** Fallback về `Record<string, unknown>` hoặc `any` để tắt Type-Safe.
+- **Giải pháp 2 (Chuẩn 2026):** Không cần import Type Input từ Prisma. Sử dụng **Spread Syntax** `...(dto.name && { name: dto.name })` để tạo object update inline ngay trong tham số của hàm `this.prisma.xyz.update({ data: { ... } })`. Nhờ vậy TypeScript sẽ tự suy luận (Type Inference) chuẩn 100% mà code lại cực kỳ thanh lịch.
+
+### 3.2 Lỗi "Unsafe member access" với Multer
+Dù đã cài `@types/multer`, ESLint đôi khi vẫn la ó `Express.Multer.File` là kiểu không xác định (cannot be resolved).
+- **Lý do:** TypeScript strict mode đôi khi cần "đánh thức" (load) các Global Namespace.
+- **Giải pháp:** Cần thêm đúng 1 dòng `import 'multer';` lên đầu file để compiler nhận diện được Type định nghĩa của thư viện này. Cần đặc biệt lưu ý lỗi "shadowing variable" (đặt tên biến trong hàm map trùng với mảng bên ngoài).
+
+### 3.3 Cạm bẫy "Idempotent" khi Xóa File trên S3/MinIO
+Trong `StorageService.deleteFile`, ban đầu chúng ta chỉ lấy tên file `ten-anh.webp`. Khi gửi lên MinIO, S3 Key bị thiếu thư mục gốc `products/123/`.
+- **Hệ quả:** MinIO không tìm thấy file để xóa nhưng cũng **KHÔNG báo lỗi** (vì S3 Delete API mang đặc tính Idempotent - nếu không tìm thấy file, nó vẫn coi như thao tác thành công và trả về HTTP 200). Rất dễ sinh ảo giác là file đã bị xóa.
+- **Giải pháp:** Bóc tách chính xác S3 Key bằng cách `url.substring(prefix.length)` (cắt bỏ phần endpoint và bucketName) để lấy ra đúng đường dẫn tương đối trong bucket.
+
+### 3.4 Hai cách dùng Prisma Transactions: Batch vs Interactive
+Chúng ta đã sử dụng cả 2 loại Transaction của Prisma cho 2 tình huống khác nhau:
+1. **Interactive Transaction (`async (tx) => {}`):**
+   - Dùng khi tạo Product: Dùng để giữ một kết nối (connection) lâu dài thực thi các lệnh phụ thuộc lẫn nhau, hoặc mở đường cho logic phức tạp trong tương lai (vd: gửi Audit log lấy từ `product.id`). Lock DB lâu hơn.
+2. **Batch Transaction (`[ query1, query2 ]`):**
+   - Dùng khi Đổi Ảnh Primary (`updateMany` cho tất cả ảnh cũ thành false, và `update` 1 ảnh mới thành true).
+   - Hai lệnh này không cần chờ kết quả (ID) của nhau. Đẩy thành mảng để Prisma gộp chung 1 round-trip gửi xuống DB giúp tốc độ thực thi nhanh chớp nhoáng.
