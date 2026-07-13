@@ -1,7 +1,7 @@
 # Development Log - Week 3: Product, Category & Inventory Foundations
 
-> **Mục tiêu:** Xây dựng hệ thống quản lý Danh mục (Category) dạng nested tree và Sản phẩm (Product) kèm theo Biến thể (Variant) và số lượng tồn kho (Inventory).
-> **Trạng thái:** Đang tiến hành (Hoàn thành Category CRUD, Product CRUD cơ bản, Phân quyền Seller vs Public).
+> **Mục tiêu:** Xây dựng hệ thống quản lý Danh mục (Category) dạng nested tree và Sản phẩm (Product) kèm theo Biến thể (Variant), số lượng tồn kho (Inventory), và API lấy danh sách sản phẩm với đầy đủ Lọc/Phân trang/Sắp xếp.
+> **Trạng thái:** ✅ HOÀN THÀNH
 
 ## 1. Hành động đã thực hiện
 

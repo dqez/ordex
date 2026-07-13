@@ -15,6 +15,12 @@ import { UpdateVariantDto } from './dto/update-variant.dto';
 import { StorageService } from '../../storage/storage.service';
 import { ImageService } from '../../storage/image.service';
 import 'multer';
+import { GetProductsDto } from './dto/get-products.dto';
+import {
+  PageMetaDto,
+  PaginatedResponseDto,
+} from '../../common/dto/pagination.dto';
+import { Prisma } from '../../../generated/prisma/client';
 
 @Injectable()
 export class ProductService {
@@ -79,14 +85,46 @@ export class ProductService {
     });
   }
 
-  async findAll() {
-    return this.prisma.product.findMany({
-      where: { is_deleted: false, status: 'active' },
-      include: {
-        category: { select: { id: true, name: true } },
-        seller: { select: { id: true, full_name: true } },
-      },
-    });
+  async findAll(query: GetProductsDto): Promise<PaginatedResponseDto<unknown>> {
+    const where = this.buildProductWhereClause(query);
+    const orderBy = this.buildProductOrderByClause(query);
+
+    const [products, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        orderBy,
+        skip: query.skip,
+        take: query.limit,
+        include: {
+          category: { select: { id: true, name: true } },
+          seller: { select: { id: true, full_name: true } },
+          productImages: { where: { is_primary: true }, take: 1 },
+          productVariants: {
+            where: { is_active: true },
+            include: { inventory: true },
+          },
+        },
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    const data = products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      basePrice: p.base_price,
+      primaryImage: p.productImages[0]?.url ?? null,
+      category: p.category,
+      seller: { id: p.seller.id, fullName: p.seller.full_name },
+      variantCount: p.productVariants.length,
+      inStock: p.productVariants.some((v) =>
+        v.inventory.some((inv) => inv.quantity - inv.reserved > 0),
+      ),
+    }));
+
+    const meta = new PageMetaDto({ pageOptionsDto: query, total });
+
+    return new PaginatedResponseDto(data, meta);
   }
 
   async findOne(id: string) {
@@ -412,5 +450,49 @@ export class ProductService {
     ]);
 
     return { message: 'Primary image updated successfully' };
+  }
+
+  // 2 Private Helper for FindAll()
+
+  private buildProductWhereClause(
+    query: GetProductsDto,
+  ): Prisma.ProductWhereInput {
+    const where: Prisma.ProductWhereInput = {
+      is_deleted: false,
+      status: query.status ?? 'active',
+    };
+
+    if (query.categoryId) where.category_id = query.categoryId;
+    if (query.sellerId) where.seller_id = query.sellerId;
+
+    if (query.minPrice !== undefined || query.maxPrice !== undefined) {
+      where.base_price = {
+        ...(query.minPrice !== undefined && { gte: query.minPrice }),
+        ...(query.maxPrice !== undefined && { lte: query.maxPrice }),
+      };
+    }
+
+    if (query.search) {
+      where.name = { contains: query.search, mode: 'insensitive' };
+    }
+
+    return where;
+  }
+
+  private buildProductOrderByClause(
+    query: GetProductsDto,
+  ): Prisma.ProductOrderByWithRelationInput {
+    const allowedSortFields: Record<
+      string,
+      keyof Prisma.ProductOrderByWithRelationInput
+    > = {
+      price: 'base_price',
+      createdAt: 'created_at',
+      name: 'name',
+    };
+
+    const field = query.sortBy ? allowedSortFields[query.sortBy] : 'created_at';
+
+    return { [field ?? 'created_at']: query.sortOrder ?? 'desc' };
   }
 }
