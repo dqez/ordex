@@ -130,3 +130,25 @@ Chúng ta đã sử dụng cả 2 loại Transaction của Prisma cho 2 tình hu
 2. **Batch Transaction (`[ query1, query2 ]`):**
    - Dùng khi Đổi Ảnh Primary (`updateMany` cho tất cả ảnh cũ thành false, và `update` 1 ảnh mới thành true).
    - Hai lệnh này không cần chờ kết quả (ID) của nhau. Đẩy thành mảng để Prisma gộp chung 1 round-trip gửi xuống DB giúp tốc độ thực thi nhanh chớp nhoáng.
+
+### 3.5 Cạm bẫy Prisma Schema Drift với Raw SQL Migration
+
+**Bối cảnh:** Tạo GIN index bằng raw SQL migration (vì Prisma không hỗ trợ `gin_trgm_ops` qua schema declaration). Sau đó chạy lại `prisma migrate dev`.
+
+**Hệ quả:** Prisma phát hiện index `products_name_gin_idx` tồn tại trong DB nhưng **không có trong `schema.prisma`** → tự động tạo thêm một migration để `DROP INDEX` nhằm "đồng bộ" lại. Index bị xóa mà không có cảnh báo rõ ràng.
+
+**Nguyên nhân gốc rễ:** `prisma migrate dev` so sánh DB state với schema, mọi thứ "lạ" trong DB so với schema đều bị coi là drift và sẽ bị remove.
+
+**Giải pháp & Quy tắc:**
+- Sau khi tạo raw SQL migration cho những thứ ngoài tầm với của Prisma Schema, **không chạy `prisma migrate dev` thêm** trừ khi có schema thay đổi thực sự.
+- Nếu bắt buộc phải chạy, chuyển migration tự sinh sang `SELECT 1;` (no-op) để Prisma "ghi nhớ" đã chạy mà không thực sự làm gì.
+- Để re-create index: chạy SQL thủ công qua psql hoặc DBeaver.
+- Production: dùng `prisma migrate deploy` (không tạo migration mới, chỉ apply pending) — an toàn hơn `migrate dev`.
+
+### 3.6 Typo Âm Thầm Trong Fallback String
+
+Trong `buildProductOrderByClause`, đã gõ `'create_at'` (thiếu chữ `d`) thay vì `'created_at'`. TypeScript không phát hiện vì đây là dynamic key `{ [field]: value }`. Prisma cũng không throw lỗi compile-time với dynamic key.
+
+**Hệ quả:** Mọi request sort đều silently fallback về key `"create_at"` không tồn tại → có thể gây runtime error hoặc sort sai.
+
+**Bài học:** Với dynamic computed property key (`{ [field]: value }`), TypeScript không kiểm tra được giá trị của `field` tại compile-time. Cần double-check bằng mắt, hoặc dùng `satisfies` / explicit type assertion để bắt lỗi sớm hơn.
