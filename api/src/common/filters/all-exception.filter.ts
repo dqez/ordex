@@ -26,10 +26,17 @@ export class AllExceptionFilter implements ExceptionFilter {
         ? exception.getResponse()
         : { message: 'Internal server error' };
 
+    const errorCode =
+      typeof exceptionResponse === 'object' && exceptionResponse.code
+        ? exceptionResponse.code
+        : status === 500
+          ? 'INTERNAL_SERVER_ERROR'
+          : 'HTTP_ERROR';
+
     response.status(status).json({
       success: false,
       error: {
-        code: status === 500 ? 'INTERNAL_SERVER_ERROR' : 'HTTP_ERROR',
+        code: errorCode,
         message: exceptionResponse.message || exceptionResponse,
         details: exceptionResponse,
       },
