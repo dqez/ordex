@@ -22,7 +22,6 @@ export class InventoryService {
       await this.prisma.$executeRaw`
         UPDATE inventory
         SET reserved = reserved - ${item.quantity},
-            quantity = quantity + ${item.quantity}
         WHERE variant_id = ${item.variantId}::uuid
           AND reserved >= ${item.quantity}
       `;
@@ -56,8 +55,7 @@ export class InventoryService {
 
     const affected = await this.prisma.$executeRaw`
       UPDATE inventory
-      SET quantity = quantity - ${qty},
-          reserved = reserved + ${qty},
+      SET reserved = reserved + ${qty},
           version = version + 1
       WHERE variant_id = ${variantId}::uuid
         AND version = ${current.version}
