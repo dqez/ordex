@@ -21,7 +21,7 @@ export class InventoryService {
     for (const item of items) {
       await this.prisma.$executeRaw`
         UPDATE inventory
-        SET reserved = reserved - ${item.quantity},
+        SET reserved = reserved - ${item.quantity}
         WHERE variant_id = ${item.variantId}::uuid
           AND reserved >= ${item.quantity}
       `;
@@ -75,12 +75,13 @@ export class InventoryService {
     });
 
     if (after) {
-      const wasAbove = current.quantity > current.low_stock_threshold;
-      const isNowBelow = after.quantity <= after.low_stock_threshold;
+      const wasAbove = available > current.low_stock_threshold;
+      const isNowBelow =
+        after.quantity - after.reserved <= after.low_stock_threshold;
 
       if (wasAbove && isNowBelow) {
         console.log(
-          `[LOW STOCK] Variant ${variantId} crossed threshold: ${after.quantity} remaining`,
+          `[LOW STOCK] Variant ${variantId} crossed threshold: ${after.quantity - after.reserved} remaining`,
         );
       }
     }
