@@ -24,6 +24,7 @@ import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis'
 import { CategoryModule } from './modules/category/category.module';
 import { StorageModule } from './storage/storage.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { CartModule } from './modules/cart/cart.module';
 
 @Module({
   imports: [
@@ -93,6 +94,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     PrismaModule,
     CategoryModule,
     StorageModule,
+    CartModule,
   ],
   controllers: [],
   providers: [
