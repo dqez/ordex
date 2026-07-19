@@ -37,7 +37,7 @@ model User {
   refreshTokens        RefreshToken[]
   addresses            Address[]
   products             Product[]
-  carts                Cart[]
+  cart                 Cart?
   orders               Order[]
   orderStatusHistories OrderStatusHistory[]
   notifications        Notification[]
@@ -54,7 +54,7 @@ model RefreshToken {
   token_hash String   @db.VarChar(255)
   expires_at DateTime
   is_revoked Boolean  @default(false)
-  family_id  String?  @db.Uuid
+  family_id  String   @db.Uuid
   created_at DateTime @default(now())
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
@@ -71,7 +71,7 @@ model Address {
   label        String?  @db.VarChar(50)
   full_name    String   @db.VarChar(100)
   phone        String   @db.VarChar(20)
-  address_line String   @db.VarChar(255)
+  address_line String   @db.Text
   ward         String?  @db.VarChar(100)
   district     String   @db.VarChar(100)
   city         String   @db.VarChar(100)
@@ -89,10 +89,10 @@ model Address {
 model Category {
   id          String   @id @default(uuid()) @db.Uuid
   name        String   @db.VarChar(100)
-  slug        String   @unique @db.VarChar(100)
+  slug        String   @unique @db.VarChar(120)
   parent_id   String?  @db.Uuid
-  description String?  @db.VarChar(255)
-  image_url   String?  @db.VarChar(255)
+  description String?  @db.Text
+  image_url   String?  @db.Text
   sort_order  Int      @default(0)
   is_active   Boolean  @default(true)
   created_at  DateTime @default(now())
@@ -115,7 +115,7 @@ model Product {
   seller_id   String        @db.Uuid
   category_id String        @db.Uuid
   name        String        @db.VarChar(255)
-  slug        String        @unique @db.VarChar(255)
+  slug        String        @unique @db.VarChar(280)
   description String?       @db.Text
   base_price  Decimal       @db.Decimal(12, 2)
   currency    String        @db.VarChar(3)
@@ -150,7 +150,7 @@ model ProductVariant {
 
   product Product @relation(fields: [product_id], references: [id], onDelete: Cascade)
 
-  inventory  Inventory[]
+  inventory  Inventory?
   cartItems  CartItem[]
   orderItems OrderItem[]
 
@@ -161,7 +161,7 @@ model ProductVariant {
 model ProductImage {
   id         String   @id @default(uuid()) @db.Uuid
   product_id String   @db.Uuid
-  url        String   @db.VarChar(255)
+  url        String   @db.Text
   alt_text   String?  @db.VarChar(255)
   sort_order Int      @default(0)
   is_primary Boolean  @default(false)
@@ -176,7 +176,7 @@ model ProductImage {
 
 model Inventory {
   id                  String   @id @default(uuid()) @db.Uuid
-  variant_id          String   @db.Uuid
+  variant_id          String   @unique @db.Uuid
   quantity            Int
   reserved            Int      @default(0)
   low_stock_threshold Int      @default(5)
@@ -199,6 +199,7 @@ model Cart {
   user      User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
   cartItems CartItem[]
 
+  @@unique([user_id])
   @@index([user_id])
   @@map("carts")
 }
