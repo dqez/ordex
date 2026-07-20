@@ -25,6 +25,7 @@ import { CategoryModule } from './modules/category/category.module';
 import { StorageModule } from './storage/storage.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CartModule } from './modules/cart/cart.module';
+import { BullModule } from '@nestjs/bullmq';
 
 @Module({
   imports: [
@@ -83,6 +84,18 @@ import { CartModule } from './modules/cart/cart.module';
       }),
     }),
     ScheduleModule.forRoot(),
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const redisUrl = new URL(config.getOrThrow<string>('REDIS_URL'));
+        return {
+          connection: {
+            host: redisUrl.hostname,
+            port: parseInt(redisUrl.port, 10),
+          },
+        };
+      },
+    }),
     ProductModule,
     AuthModule,
     UserModule,
