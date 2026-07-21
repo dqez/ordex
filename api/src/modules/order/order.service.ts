@@ -1,26 +1,52 @@
-import { Injectable } from '@nestjs/common';
-import { CreateOrderDto } from './dto/create-order.dto';
-import { UpdateOrderDto } from './dto/update-order.dto';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { OrderStatus } from '../../../generated/prisma/enums';
+import { VALID_ORDER_TRANSITIONS } from './constants/order-transitions.constant';
 
 @Injectable()
 export class OrderService {
-  create(createOrderDto: CreateOrderDto) {
-    return 'This action adds a new order';
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
-    return `This action returns all order`;
-  }
+  async transitionOrderStatus(
+    orderId: string,
+    nextStatus: OrderStatus,
+    reason?: string,
+    changedBy?: string,
+  ) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
+    if (!order) throw new NotFoundException('Order not found');
 
-  findOne(id: number) {
-    return `This action returns a #${id} order`;
-  }
+    const allowedStatuses = VALID_ORDER_TRANSITIONS[order.status];
+    if (!allowedStatuses || !allowedStatuses.includes(nextStatus)) {
+      throw new BadRequestException(
+        `Cannot transition from '${order.status}' to '${nextStatus}'`,
+      );
+    }
 
-  update(id: number, updateOrderDto: UpdateOrderDto) {
-    return `This action updates a #${id} order`;
-  }
+    const [updatedOrder] = await this.prisma.$transaction([
+      this.prisma.order.update({
+        where: { id: orderId },
+        data: {
+          status: nextStatus,
+        },
+      }),
+      this.prisma.orderStatusHistory.create({
+        data: {
+          order_id: orderId,
+          from_status: order.status,
+          to_status: nextStatus,
+          changed_by: changedBy,
+          reason: reason,
+        },
+      }),
+    ]);
 
-  remove(id: number) {
-    return `This action removes a #${id} order`;
+    return updatedOrder;
   }
 }
