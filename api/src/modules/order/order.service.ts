@@ -8,10 +8,15 @@ import { OrderStatus } from '../../../generated/prisma/enums';
 import { VALID_ORDER_TRANSITIONS } from './constants/order-transitions.constant';
 import { CheckoutDto } from './dto/checkout.dto';
 import { generateOrderNumber } from '../../common/utils/order-number.util';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class OrderService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectQueue('order-queue') private orderQueue: Queue,
+  ) {}
 
   async transitionOrderStatus(
     orderId: string,
@@ -120,6 +125,14 @@ export class OrderService {
       });
 
       return newOrder;
+    });
+
+    await this.orderQueue.add('process-order', {
+      orderId: order.id,
+      items: cart.cartItems.map((item) => ({
+        variantId: item.variant_id,
+        quantity: item.quantity,
+      })),
     });
 
     return { orderId: order.id, orderNumber: order.order_number };
