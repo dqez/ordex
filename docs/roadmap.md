@@ -131,13 +131,13 @@
 
 ### Week 5 Tasks
 
-- [ ] Cart module (add/update/remove/clear)
-- [ ] Checkout flow: cart → validate → create order
-- [ ] Order number generation (`ORD-YYYYMMDD-XXXX`)
-- [ ] Order status state machine
-- [ ] OrderStatusHistory tracking
-- [ ] BullMQ setup + queue definitions
-- [ ] Order pipeline: `OrderCreated → ValidateStock → ReserveStock → ProcessPayment`
+- [x] Cart module (add/update/remove/clear)
+- [x] Checkout flow: cart → validate → create order
+- [x] Order number generation (`ORD-YYYYMMDD-XXXX`)
+- [x] Order status state machine
+- [x] OrderStatusHistory tracking
+- [x] BullMQ setup + queue definitions
+- [x] Order pipeline: `OrderCreated → ValidateStock → ReserveStock → ProcessPayment`
 
 ### Week 6 Tasks
 
