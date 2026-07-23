@@ -7,7 +7,7 @@ import {
   Min,
 } from 'class-validator';
 import { PageOptionsDto } from '../../../common/dto/pagination.dto';
-import { ProductStatus } from '@prisma/client';
+import { ProductStatus } from '@generated/prisma/enums';
 import { Type } from 'class-transformer';
 
 export class GetProductsDto extends PageOptionsDto {
