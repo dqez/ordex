@@ -1,15 +1,15 @@
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus } from '@generated/prisma/enums';
 
 export const VALID_ORDER_TRANSITIONS: Readonly<
   Record<OrderStatus, OrderStatus[]>
 > = {
-  pending: [OrderStatus.confirmed, OrderStatus.cancelled],
-  confirmed: [OrderStatus.paid, OrderStatus.cancelled],
+  pending: [OrderStatus.stock_reserved, OrderStatus.cancelled],
+  stock_reserved: [OrderStatus.paid, OrderStatus.cancelled],
   paid: [OrderStatus.processing, OrderStatus.refunded],
+  payment_failed: [OrderStatus.stock_reserved, OrderStatus.cancelled],
   processing: [OrderStatus.shipped],
   shipped: [OrderStatus.delivered],
   delivered: [OrderStatus.completed],
-  payment_failed: [OrderStatus.cancelled],
   completed: [],
   cancelled: [],
   refunded: [],

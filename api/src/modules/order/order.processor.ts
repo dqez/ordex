@@ -3,7 +3,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { OrderService } from './order.service';
 import { Job } from 'bullmq';
 import { ReserveStockItemDto } from '../inventory/dto/reserve-stock.dto';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus } from '@generated/prisma/enums';
 import { InsufficientStockException } from '../../common/exceptions/insufficient-stock.exception';
 
 @Processor('order-queue')
@@ -28,7 +28,7 @@ export class OrderProcessor extends WorkerHost {
 
         await this.orderService.transitionOrderStatus(
           orderId,
-          OrderStatus.confirmed,
+          OrderStatus.stock_reserved,
         );
       } catch (error) {
         if (error instanceof InsufficientStockException) {
