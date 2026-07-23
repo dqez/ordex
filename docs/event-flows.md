@@ -11,14 +11,12 @@ stateDiagram-v2
     pending --> stock_reserved: Stock validation passed
     pending --> cancelled: Stock insufficient
 
-    stock_reserved --> payment_processing: Payment initiated
+    stock_reserved --> paid: Payment succeeded (via webhook)
+    stock_reserved --> payment_failed: Payment failed (via webhook)
     stock_reserved --> cancelled: Payment timeout (15min)
 
-    payment_processing --> paid: Payment succeeded
-    payment_processing --> payment_failed: Payment failed
-
     paid --> processing: Seller confirms
-    payment_failed --> pending: User retries payment
+    payment_failed --> stock_reserved: User retries payment (stock still reserved)
     payment_failed --> cancelled: User cancels / max retries
 
     processing --> shipped: Seller ships
@@ -29,8 +27,8 @@ stateDiagram-v2
     completed --> [*]
 
     note right of stock_reserved
-        Stock is RESERVED, not deducted.
-        Released if payment fails.
+        Stock is RESERVED, not deducted. Released if cancelled.
+        Payment sub-state tracked via Payment.status. See ADR-006.
     end note
 
     note right of paid
@@ -126,15 +124,15 @@ sequenceDiagram
 
 ### 3.1 Queue Definitions
 
-| Queue Name | Purpose | Retry | Backoff | DLQ |
-|---|---|---|---|---|
-| `order.stock` | Stock validation & reservation | 3 | Exponential (1s, 5s, 30s) | ✅ |
-| `order.payment` | Payment processing | 2 | Fixed (10s) | ✅ |
-| `order.confirm` | Order confirmation + stock deduction | 3 | Exponential | ✅ |
-| `order.cancel` | Order cancellation + stock release | 5 | Exponential | ✅ |
-| `notification.send` | Email/Telegram dispatch | 3 | Exponential (5s, 30s, 120s) | ✅ |
-| `analytics.aggregate` | Revenue/sales data aggregation | 2 | Fixed (60s) | ❌ |
-| `system.cleanup` | Expired idempotency keys, stale carts | 1 | — | ❌ |
+| Queue Name            | Purpose                               | Retry | Backoff                     | DLQ |
+| --------------------- | ------------------------------------- | ----- | --------------------------- | --- |
+| `order.stock`         | Stock validation & reservation        | 3     | Exponential (1s, 5s, 30s)   | ✅  |
+| `order.payment`       | Payment processing                    | 2     | Fixed (10s)                 | ✅  |
+| `order.confirm`       | Order confirmation + stock deduction  | 3     | Exponential                 | ✅  |
+| `order.cancel`        | Order cancellation + stock release    | 5     | Exponential                 | ✅  |
+| `notification.send`   | Email/Telegram dispatch               | 3     | Exponential (5s, 30s, 120s) | ✅  |
+| `analytics.aggregate` | Revenue/sales data aggregation        | 2     | Fixed (60s)                 | ❌  |
+| `system.cleanup`      | Expired idempotency keys, stale carts | 1     | —                           | ❌  |
 
 ### 3.2 Job Configuration
 
@@ -164,6 +162,7 @@ sequenceDiagram
 ### 3.3 Dead Letter Queue Handling
 
 Khi job fail hết số retry:
+
 1. Job tự động vào DLQ (`__dlq` suffix)
 2. Admin Dashboard hiển thị DLQ jobs
 3. Admin có thể: **Retry** (push lại queue gốc) hoặc **Discard** (mark resolved)
@@ -237,14 +236,14 @@ Khi 1 step trong pipeline fail, các step trước đó phải được "undo" (
 
 ### 5.1 Compensation Table
 
-| Step | Action | Compensation (if fail) |
-|---|---|---|
-| 1. Validate Stock | Check availability | — (no side effect) |
-| 2. Reserve Stock | `reserved += quantity` | `reserved -= quantity` |
-| 3. Process Payment | Charge via Stripe | Refund via Stripe |
-| 4. Confirm Order | `status → paid` | `status → cancelled` |
-| 5. Deduct Stock | `quantity -= reserved` | `quantity += amount` (restore) |
-| 6. Send Notification | Email/Telegram | — (notification is fire-and-forget) |
+| Step                 | Action                 | Compensation (if fail)              |
+| -------------------- | ---------------------- | ----------------------------------- |
+| 1. Validate Stock    | Check availability     | — (no side effect)                  |
+| 2. Reserve Stock     | `reserved += quantity` | `reserved -= quantity`              |
+| 3. Process Payment   | Charge via Stripe      | Refund via Stripe                   |
+| 4. Confirm Order     | `status → paid`        | `status → cancelled`                |
+| 5. Deduct Stock      | `quantity -= reserved` | `quantity += amount` (restore)      |
+| 6. Send Notification | Email/Telegram         | — (notification is fire-and-forget) |
 
 ### 5.2 Compensation Flow Example
 
@@ -264,13 +263,13 @@ Step 3: ❌ Payment failed (Stripe timeout)
 
 ## 6. Scheduled Jobs (BullMQ Cron)
 
-| Job | Schedule | Purpose |
-|---|---|---|
-| `cleanup-expired-carts` | Every 6h | Remove carts inactive > 7 days |
-| `cleanup-idempotency-keys` | Daily 3:00 AM | Delete keys older than 24h |
-| `release-stale-reservations` | Every 30min | Release stock reserved > 15min without payment |
-| `aggregate-daily-analytics` | Daily 1:00 AM | Revenue, order count, conversion rate |
-| `send-daily-seller-report` | Daily 8:00 AM | Email seller summary |
+| Job                          | Schedule      | Purpose                                        |
+| ---------------------------- | ------------- | ---------------------------------------------- |
+| `cleanup-expired-carts`      | Every 6h      | Remove carts inactive > 7 days                 |
+| `cleanup-idempotency-keys`   | Daily 3:00 AM | Delete keys older than 24h                     |
+| `release-stale-reservations` | Every 30min   | Release stock reserved > 15min without payment |
+| `aggregate-daily-analytics`  | Daily 1:00 AM | Revenue, order count, conversion rate          |
+| `send-daily-seller-report`   | Daily 8:00 AM | Email seller summary                           |
 
 ---
 
@@ -278,19 +277,19 @@ Step 3: ❌ Payment failed (Stripe timeout)
 
 Complete list of domain events in the system:
 
-| Event | Publisher | Consumer(s) | Payload |
-|---|---|---|---|
-| `order.created` | Order Module | Inventory | `{orderId, items[]}` |
-| `stock.reserved` | Inventory | Order | `{orderId, reservationId}` |
-| `stock.insufficient` | Inventory | Order | `{orderId, variantId, available}` |
-| `stock.released` | Inventory | Analytics | `{orderId, items[]}` |
-| `payment.processing` | Payment | Order | `{orderId, paymentId, provider}` |
-| `payment.succeeded` | Payment | Order, Notification, Analytics | `{orderId, paymentId, amount}` |
-| `payment.failed` | Payment | Order, Notification | `{orderId, paymentId, reason}` |
-| `payment.refunded` | Payment | Order, Notification, Inventory | `{orderId, amount}` |
-| `order.confirmed` | Order | Notification | `{orderId, userId}` |
-| `order.shipped` | Order | Notification | `{orderId, trackingNumber}` |
-| `order.completed` | Order | Analytics | `{orderId, total}` |
-| `order.cancelled` | Order | Inventory, Notification | `{orderId, reason}` |
-| `notification.sent` | Notification | — | `{notificationId, channel}` |
-| `notification.failed` | Notification | DLQ Handler | `{notificationId, error}` |
+| Event                 | Publisher    | Consumer(s)                    | Payload                           |
+| --------------------- | ------------ | ------------------------------ | --------------------------------- |
+| `order.created`       | Order Module | Inventory                      | `{orderId, items[]}`              |
+| `stock.reserved`      | Inventory    | Order                          | `{orderId, reservationId}`        |
+| `stock.insufficient`  | Inventory    | Order                          | `{orderId, variantId, available}` |
+| `stock.released`      | Inventory    | Analytics                      | `{orderId, items[]}`              |
+| `payment.processing`  | Payment      | Order                          | `{orderId, paymentId, provider}`  |
+| `payment.succeeded`   | Payment      | Order, Notification, Analytics | `{orderId, paymentId, amount}`    |
+| `payment.failed`      | Payment      | Order, Notification            | `{orderId, paymentId, reason}`    |
+| `payment.refunded`    | Payment      | Order, Notification, Inventory | `{orderId, amount}`               |
+| `order.confirmed`     | Order        | Notification                   | `{orderId, userId}`               |
+| `order.shipped`       | Order        | Notification                   | `{orderId, trackingNumber}`       |
+| `order.completed`     | Order        | Analytics                      | `{orderId, total}`                |
+| `order.cancelled`     | Order        | Inventory, Notification        | `{orderId, reason}`               |
+| `notification.sent`   | Notification | —                              | `{notificationId, channel}`       |
+| `notification.failed` | Notification | DLQ Handler                    | `{notificationId, error}`         |
