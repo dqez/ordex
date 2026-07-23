@@ -222,7 +222,7 @@ model CartItem {
 
 enum OrderStatus {
   pending
-  confirmed
+  stock_reserved
   paid
   payment_failed
   processing
