@@ -1,26 +1,41 @@
-import { Injectable } from '@nestjs/common';
-import { CreatePaymentDto } from './dto/create-payment.dto';
-import { UpdatePaymentDto } from './dto/update-payment.dto';
+import { Inject, Injectable } from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
+import {
+  PAYMENT_PROVIDER,
+  PaymentProviderInterface,
+} from './interfaces/payment-provider.interface';
+import { Prisma } from '@generated/prisma/client';
 
 @Injectable()
 export class PaymentService {
-  create(createPaymentDto: CreatePaymentDto) {
-    return 'This action adds a new payment';
-  }
+  constructor(
+    private prisma: PrismaService,
+    @Inject(PAYMENT_PROVIDER) private paymentProvider: PaymentProviderInterface,
+  ) {}
 
-  findAll() {
-    return `This action returns all payment`;
-  }
+  async createPayment(
+    orderId: string,
+    amount: number,
+    currency: string = 'usd',
+  ) {
+    const intent = await this.paymentProvider.createPaymentIntent({
+      orderId,
+      amount,
+      currency,
+    });
 
-  findOne(id: number) {
-    return `This action returns a #${id} payment`;
-  }
+    const payment = await this.prisma.payment.create({
+      data: {
+        order_id: orderId,
+        provider: 'stripe',
+        provider_payment_id: intent.providerPaymentId,
+        amount: amount,
+        currency: currency,
+        status: intent.status,
+        metadata: intent.rawResponse as Prisma.InputJsonObject,
+      },
+    });
 
-  update(id: number, updatePaymentDto: UpdatePaymentDto) {
-    return `This action updates a #${id} payment`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} payment`;
+    return payment;
   }
 }

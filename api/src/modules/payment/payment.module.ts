@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { PaymentController } from './payment.controller';
-import { MockPaymentProvider } from './providers/mock-payment.provider';
 import { PAYMENT_PROVIDER } from './interfaces/payment-provider.interface';
+import { StripePaymentProvider } from './providers/stripe-payment.provider';
 
 @Module({
   controllers: [PaymentController],
@@ -10,7 +10,7 @@ import { PAYMENT_PROVIDER } from './interfaces/payment-provider.interface';
     PaymentService,
     {
       provide: PAYMENT_PROVIDER,
-      useClass: MockPaymentProvider,
+      useClass: StripePaymentProvider,
     },
   ],
   exports: [PAYMENT_PROVIDER],

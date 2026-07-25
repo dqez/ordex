@@ -7,7 +7,7 @@ export type CreatePaymentIntentInput = {
 export type PaymentIntentResult = {
   providerPaymentId: string;
   status: 'pending' | 'succeeded' | 'failed';
-  rawResponse: any;
+  rawResponse: Record<string, unknown>;
 };
 
 export interface PaymentProviderInterface {
