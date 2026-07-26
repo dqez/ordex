@@ -409,8 +409,8 @@ model IdempotencyKey {
   resource_type String   @db.VarChar(50)
   resource_id   String?  @db.Uuid
   request_hash  String   @db.VarChar(64)
-  response_code Int
-  response_body Json
+  response_code Int?
+  response_body Json?
   expires_at    DateTime
   created_at    DateTime @default(now())
 
