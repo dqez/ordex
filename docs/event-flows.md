@@ -47,31 +47,33 @@ stateDiagram-v2
 sequenceDiagram
     participant Client
     participant OrderAPI
-    participant OrderQueue as Order Queue (BullMQ)
     participant InventoryService
     participant PaymentService
+    participant OrderQueue as Order Queue (BullMQ)
     participant NotifyQueue as Notification Queue
     participant AnalyticsQueue as Analytics Queue
 
-    Client->>OrderAPI: POST /orders (checkout)
+    Note over Client,PaymentService: --- 1. Synchronous Request ---
+
+    Client->>OrderAPI: POST /orders/checkout
     OrderAPI->>OrderAPI: Validate cart, calculate total
     OrderAPI->>OrderAPI: Create Order (status: pending)
-    OrderAPI->>OrderQueue: Dispatch: ValidateAndReserveStock
-    OrderAPI-->>Client: 201 Created (order_id, status: pending)
 
-    Note over OrderQueue: --- Async Processing ---
+    OrderAPI->>InventoryService: reserveStock(items)
+    InventoryService->>InventoryService: Check & Reserve (optimistic lock)
+    InventoryService-->>OrderAPI: ✅ Stock reserved
+    OrderAPI->>OrderAPI: Update Order (status: stock_reserved)
 
-    OrderQueue->>InventoryService: Job: ValidateAndReserveStock
-    InventoryService->>InventoryService: Check stock (optimistic lock)
-    InventoryService->>InventoryService: Reserve stock (quantity -, reserved +)
-    InventoryService->>OrderQueue: Dispatch: ProcessPayment
-    InventoryService-->>OrderQueue: ✅ Stock reserved
-
-    OrderQueue->>PaymentService: Job: ProcessPayment
+    OrderAPI->>PaymentService: createPayment(order)
     PaymentService->>PaymentService: Create Stripe PaymentIntent
-    PaymentService-->>Client: Redirect to Stripe checkout
+    PaymentService-->>OrderAPI: ✅ PaymentIntent (client_secret)
+    OrderAPI->>OrderAPI: Create Payment record (status: processing)
 
-    Note over PaymentService: Stripe processes payment...
+    OrderAPI-->>Client: 201 Created (order_id, client_secret)
+
+    Note over Client,OrderQueue: --- 2. The customer enters their Visa card details on the UI ---
+
+    Note over Client,AnalyticsQueue: --- 3. Asynchronous Webhook ---
 
     PaymentService->>PaymentService: Webhook: payment_intent.succeeded
     PaymentService->>PaymentService: Check idempotency key
@@ -88,7 +90,41 @@ sequenceDiagram
     AnalyticsQueue->>AnalyticsQueue: Aggregate revenue data
 ```
 
-### 2.2 Failure Path (Payment Failed)
+### 2.2 Synchronous Checkout Failure
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant OrderAPI
+    participant InventoryService
+    participant PaymentService
+
+    Client->>OrderAPI: POST /orders/checkout
+
+    OrderAPI->>InventoryService: reserveStock(items)
+
+    alt Stock Insufficient
+        InventoryService-->>OrderAPI: ❌ Throw InsufficientStockException
+        OrderAPI->>OrderAPI: Update Order (status: cancelled)
+        OrderAPI-->>Client: 422 Unprocessable Entity
+    else Stock Sufficient
+        InventoryService-->>OrderAPI: ✅ Stock reserved
+        OrderAPI->>PaymentService: createPayment(order)
+
+        alt Stripe API error / timeout
+            PaymentService-->>OrderAPI: ❌ Throw Exception
+            Note over OrderAPI,InventoryService: --- Active 'compensation' right on the spot ---
+            OrderAPI->>InventoryService: releaseStock(items)
+            OrderAPI->>OrderAPI: Update Order (status: cancelled)
+            OrderAPI-->>Client: 502 Bad Gateway (Payment gateway error)
+        else PaymentIntent created successfully
+            PaymentService-->>OrderAPI: ✅ client_secret
+            OrderAPI-->>Client: 201 Created (order_id, client_secret)
+        end
+    end
+```
+
+### 2.3 Failure Path (Payment Failed)
 
 ```mermaid
 sequenceDiagram
