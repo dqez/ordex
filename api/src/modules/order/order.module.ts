@@ -4,10 +4,15 @@ import { OrderController } from './order.controller';
 import { BullModule } from '@nestjs/bullmq';
 import { InventoryModule } from '../inventory/inventory.module';
 import { OrderProcessor } from './order.processor';
+import { PaymentModule } from '../payment/payment.module';
 
 @Module({
   controllers: [OrderController],
   providers: [OrderService, OrderProcessor],
-  imports: [BullModule.registerQueue({ name: 'order-queue' }), InventoryModule],
+  imports: [
+    BullModule.registerQueue({ name: 'order-queue' }),
+    InventoryModule,
+    PaymentModule,
+  ],
 })
 export class OrderModule {}

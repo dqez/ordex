@@ -141,19 +141,19 @@
 
 ### Week 6 Tasks
 
-- [ ] **Payment Strategy Pattern:**
-  - `PaymentProviderInterface`
-  - `StripeProvider` implementation
-  - `VNPayProvider` implementation
-- [ ] Stripe PaymentIntent creation + checkout URL
+- [x] **Payment Strategy Pattern:**
+  - [x] `PaymentProviderInterface`
+  - [x] `StripeProvider` implementation
+  - [ ] `VNPayProvider` implementation
+- [x] Stripe PaymentIntent creation + clientSecret return
 - [ ] VNPay payment URL generation
 - [ ] **Webhook handlers:**
-  - Stripe: `payment_intent.succeeded` / `failed`
-  - VNPay: return URL + IPN callback
+  - [ ] Stripe: `payment_intent.succeeded` / `failed`
+  - [ ] VNPay: return URL + IPN callback
 - [ ] **Idempotency key** for all webhooks
 - [ ] Payment success flow: `ConfirmOrder → DeductStock → Notify`
 - [ ] Payment failure flow: `ReleaseStock → CancelOrder → Notify`
-- [ ] **Saga compensation** on pipeline failure
+- [x] **Saga compensation** on pipeline failure (Đã xử lý rollback synchronous ở Checkout API)
 - [ ] Dead Letter Queue setup
 
 ### Definition of Done

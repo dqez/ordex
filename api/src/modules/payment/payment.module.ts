@@ -13,6 +13,6 @@ import { StripePaymentProvider } from './providers/stripe-payment.provider';
       useClass: StripePaymentProvider,
     },
   ],
-  exports: [PAYMENT_PROVIDER],
+  exports: [PAYMENT_PROVIDER, PaymentService],
 })
 export class PaymentModule {}

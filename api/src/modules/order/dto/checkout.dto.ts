@@ -12,4 +12,8 @@ export class CheckoutDto {
   @IsString()
   @IsOptional()
   note?: string;
+
+  @IsUUID()
+  @IsNotEmpty()
+  idempotencyKey!: string;
 }

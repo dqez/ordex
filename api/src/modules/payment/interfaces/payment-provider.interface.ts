@@ -1,12 +1,18 @@
+import { PaymentStatus, Prisma } from '@generated/prisma/client';
+import Stripe from 'stripe';
+
 export type CreatePaymentIntentInput = {
   orderId: string;
-  amount: number;
+  amount: Prisma.Decimal;
   currency: string;
 };
 
 export type PaymentIntentResult = {
+  provider: 'stripe' | 'vnpay';
   providerPaymentId: string;
-  status: 'pending' | 'succeeded' | 'failed';
+  status: PaymentStatus;
+  clientSecret?: string;
+  redirectUrl?: string;
   rawResponse: Record<string, unknown>;
 };
 
@@ -15,7 +21,10 @@ export interface PaymentProviderInterface {
     input: CreatePaymentIntentInput,
   ): Promise<PaymentIntentResult>;
 
-  verifyWebhookSignature(payload: Buffer, signature: string): boolean;
+  verifyWebhookSignature(
+    payload: Buffer,
+    signature: string,
+  ): Stripe.Event | null;
 }
 
 export const PAYMENT_PROVIDER = 'PAYMENT_PROVIDER';

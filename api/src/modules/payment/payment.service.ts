@@ -15,8 +15,8 @@ export class PaymentService {
 
   async createPayment(
     orderId: string,
-    amount: number,
-    currency: string = 'usd',
+    amount: Prisma.Decimal,
+    currency: string = 'vnd',
   ) {
     const intent = await this.paymentProvider.createPaymentIntent({
       orderId,
@@ -27,15 +27,21 @@ export class PaymentService {
     const payment = await this.prisma.payment.create({
       data: {
         order_id: orderId,
-        provider: 'stripe',
+        provider: intent.provider,
         provider_payment_id: intent.providerPaymentId,
-        amount: amount,
-        currency: currency,
+        amount,
+        currency,
         status: intent.status,
-        metadata: intent.rawResponse as Prisma.InputJsonObject,
+        metadata: JSON.parse(
+          JSON.stringify(intent.rawResponse),
+        ) as Prisma.InputJsonObject,
       },
     });
 
-    return payment;
+    return {
+      payment,
+      clientSecret: intent.clientSecret,
+      redirectUrl: intent.redirectUrl,
+    };
   }
 }
