@@ -1,5 +1,4 @@
 import { PaymentStatus, Prisma } from '@generated/prisma/client';
-import Stripe from 'stripe';
 
 export type CreatePaymentIntentInput = {
   orderId: string;
@@ -24,7 +23,7 @@ export interface PaymentProviderInterface {
   verifyWebhookSignature(
     payload: Buffer,
     signature: string,
-  ): Stripe.Event | null;
+  ): Record<string, unknown> | null;
 }
 
 export const PAYMENT_PROVIDER = 'PAYMENT_PROVIDER';
