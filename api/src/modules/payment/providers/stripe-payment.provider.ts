@@ -51,13 +51,17 @@ export class StripePaymentProvider implements PaymentProviderInterface {
     };
   }
 
-  verifyWebhookSignature(payload: Buffer, signature: string) {
+  verifyWebhookSignature(
+    payload: Buffer,
+    signature: string,
+  ): Record<string, unknown> | null {
     try {
-      return this.stripe.webhooks.constructEvent(
+      const event = this.stripe.webhooks.constructEvent(
         payload,
         signature,
         this.webhookSecret,
       );
+      return event as unknown as Record<string, unknown>;
     } catch {
       return null;
     }

@@ -2,25 +2,61 @@ import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { InventoryService } from '../inventory/inventory.service';
 import { OrderService } from './order.service';
 import { Job } from 'bullmq';
-import { ReserveStockItemDto } from '../inventory/dto/reserve-stock.dto';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { OrderStatus } from '@generated/prisma/enums';
+import { Logger } from '@nestjs/common';
 
 @Processor('order-queue')
 export class OrderProcessor extends WorkerHost {
   constructor(
-    private inventoryService: InventoryService,
-    private orderService: OrderService,
+    private readonly prisma: PrismaService,
+    private readonly inventoryService: InventoryService,
+    private readonly orderService: OrderService,
+    private readonly logger = new Logger(OrderProcessor.name),
   ) {
     super();
   }
 
   @OnWorkerEvent('completed')
   onCompleted(job: Job) {
-    console.log(`[ORDEX] Order queue worker: job ${job.id} completed!`);
+    this.logger.log(`[ORDEX] Order queue worker: job ${job.id} completed!`);
   }
 
-  async process(job: Job<{ orderId: string; items: ReserveStockItemDto[] }>) {
-    return Promise.resolve(
-      console.log(`[ORDEX] Unknown job name: ${job.name}`),
-    );
+  async process(job: Job<{ orderId: string; paymentId: string }>) {
+    switch (job.name) {
+      case 'ConfirmOrder': {
+        const orderId = job.data.orderId;
+        const items = await this.getItemsFromOrder(orderId);
+        await this.inventoryService.deductStock(items);
+        await this.orderService.transitionOrderStatus(
+          orderId,
+          OrderStatus.paid,
+        );
+        break;
+      }
+      case 'HandlePaymentFailure': {
+        const orderId = job.data.orderId;
+        const items = await this.getItemsFromOrder(orderId);
+        await this.inventoryService.releaseStock(items);
+        await this.orderService.transitionOrderStatus(
+          orderId,
+          OrderStatus.payment_failed,
+        );
+        break;
+      }
+      default:
+        this.logger.warn(`Unknown job name: ${job.name}`);
+        break;
+    }
+  }
+
+  private async getItemsFromOrder(orderId: string) {
+    const orderItems = await this.prisma.orderItem.findMany({
+      where: { order_id: orderId },
+    });
+    return orderItems.map((i) => ({
+      variantId: i.variant_id,
+      quantity: i.quantity,
+    }));
   }
 }

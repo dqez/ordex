@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ReserveStockItemDto } from './dto/reserve-stock.dto';
 import { InsufficientStockException } from '../../common/exceptions/insufficient-stock.exception';
@@ -9,7 +9,28 @@ const MAX_RETRY = 3;
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly logger = new Logger(InventoryService.name),
+  ) {}
+
+  async deductStock(items: ReserveStockItemDto[]): Promise<void> {
+    for (const item of items) {
+      const affected = await this.prisma.$executeRaw`
+        UPDATE inventory
+        SET quantity = quantity - ${item.quantity},
+            reserved = reserved - ${item.quantity}
+        WHERE variant_id = ${item.variantId}::uuid
+          AND reserved >= ${item.quantity}
+          AND quantity >= ${item.quantity}
+      `;
+      if (affected === 0) {
+        this.logger.warn(
+          `Cannot deduct stock with variantId = ${item.variantId}`,
+        );
+      }
+    }
+  }
 
   async reserveStock(items: ReserveStockItemDto[]): Promise<void> {
     for (const item of items) {
@@ -19,12 +40,17 @@ export class InventoryService {
 
   async releaseStock(items: ReserveStockItemDto[]): Promise<void> {
     for (const item of items) {
-      await this.prisma.$executeRaw`
+      const affected = await this.prisma.$executeRaw`
         UPDATE inventory
         SET reserved = reserved - ${item.quantity}
         WHERE variant_id = ${item.variantId}::uuid
           AND reserved >= ${item.quantity}
       `;
+      if (affected === 0) {
+        this.logger.warn(
+          `Cannot release stock with variantId = ${item.variantId}`,
+        );
+      }
     }
   }
 

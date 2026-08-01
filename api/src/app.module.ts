@@ -26,6 +26,7 @@ import { StorageModule } from './storage/storage.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CartModule } from './modules/cart/cart.module';
 import { BullModule } from '@nestjs/bullmq';
+import { WebhookModule } from './modules/webhook/webhook.module';
 
 @Module({
   imports: [
@@ -108,6 +109,7 @@ import { BullModule } from '@nestjs/bullmq';
     CategoryModule,
     StorageModule,
     CartModule,
+    WebhookModule,
   ],
   controllers: [],
   providers: [
