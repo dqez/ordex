@@ -22,6 +22,19 @@ export class OrderProcessor extends WorkerHost {
     this.logger.log(`[ORDEX] Order queue worker: job ${job.id} completed!`);
   }
 
+  @OnWorkerEvent('failed')
+  onFailed(job: Job<{ orderId: string; paymentId: string }>, error: Error) {
+    if (job.attemptsMade >= (job.opts.attempts ?? 1)) {
+      this.logger.error(
+        `[DLQ ALERT] Job ${job.name} (id: ${job.id}) moved to DLQ after ${job.attemptsMade} attempts`,
+        {
+          jobData: job.data,
+          errorMessage: error.message,
+        },
+      );
+    }
+  }
+
   async process(job: Job<{ orderId: string; paymentId: string }>) {
     switch (job.name) {
       case 'ConfirmOrder': {

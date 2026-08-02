@@ -3,6 +3,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
@@ -19,6 +20,7 @@ export class PaymentService {
     private prisma: PrismaService,
     @Inject(PAYMENT_PROVIDER) private paymentProvider: PaymentProviderInterface,
     @InjectQueue('order-queue') private readonly orderQueue: Queue,
+    private readonly logger = new Logger(PaymentService.name),
   ) {}
 
   async createPayment(
@@ -91,7 +93,9 @@ export class PaymentService {
     const paymentIntent = stripeEvent.data.object;
     const orderId = paymentIntent.metadata?.orderId;
     if (!orderId) {
-      console.log(`OrderId not found`);
+      this.logger.warn(
+        `Webhook event ${stripeEvent.id}: orderId not found for provider_payment_id=${paymentIntent.id}`,
+      );
       return;
     }
 
@@ -101,7 +105,9 @@ export class PaymentService {
       },
     });
     if (!payment) {
-      console.log('Payment not found');
+      this.logger.warn(
+        `Webhook event ${stripeEvent.id}: payment record not found for provider_payment_id=${paymentIntent.id}`,
+      );
       return;
     }
 
@@ -111,20 +117,44 @@ export class PaymentService {
           where: { id: payment.id },
           data: { status: 'succeeded' },
         });
-        await this.orderQueue.add('ConfirmOrder', {
-          orderId,
-          paymentId: payment.id,
-        });
+        await this.orderQueue.add(
+          'ConfirmOrder',
+          {
+            orderId,
+            paymentId: payment.id,
+          },
+          {
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 2000,
+            },
+            removeOnComplete: true,
+            removeOnFail: false,
+          },
+        );
         break;
       case 'payment_intent.payment_failed':
         await this.prisma.payment.update({
           where: { id: payment.id },
           data: { status: 'failed' },
         });
-        await this.orderQueue.add('HandlePaymentFailure', {
-          orderId,
-          paymentId: payment.id,
-        });
+        await this.orderQueue.add(
+          'HandlePaymentFailure',
+          {
+            orderId,
+            paymentId: payment.id,
+          },
+          {
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 2000,
+            },
+            removeOnComplete: true,
+            removeOnFail: false,
+          },
+        );
         break;
       default:
         break;
