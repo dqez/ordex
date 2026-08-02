@@ -147,14 +147,14 @@
   - [ ] `VNPayProvider` implementation
 - [x] Stripe PaymentIntent creation + clientSecret return
 - [ ] VNPay payment URL generation
-- [ ] **Webhook handlers:**
-  - [ ] Stripe: `payment_intent.succeeded` / `failed`
+- [x] **Webhook handlers:**
+  - [x] Stripe: `payment_intent.succeeded` / `failed`
   - [ ] VNPay: return URL + IPN callback
-- [ ] **Idempotency key** for all webhooks
-- [ ] Payment success flow: `ConfirmOrder → DeductStock → Notify`
-- [ ] Payment failure flow: `ReleaseStock → CancelOrder → Notify`
+- [x] **Idempotency key** for all webhooks
+- [x] Payment success flow: `ConfirmOrder → DeductStock → Notify`
+- [x] Payment failure flow: `ReleaseStock → CancelOrder → Notify`
 - [x] **Saga compensation** on pipeline failure (Đã xử lý rollback synchronous ở Checkout API)
-- [ ] Dead Letter Queue setup
+- [x] Dead Letter Queue setup
 
 ### Definition of Done
 
