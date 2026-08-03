@@ -34,14 +34,15 @@ model User {
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
 
-  refreshTokens        RefreshToken[]
-  addresses            Address[]
-  products             Product[]
-  cart                 Cart?
-  orders               Order[]
-  orderStatusHistories OrderStatusHistory[]
-  notifications        Notification[]
-  auditLogs            AuditLog[]
+  refreshTokens            RefreshToken[]
+  addresses                Address[]
+  products                 Product[]
+  cart                     Cart?
+  orders                   Order[]
+  orderStatusHistories     OrderStatusHistory[]
+  notifications            Notification[]
+  auditLogs                AuditLog[]
+  userNotificationSettings UserNotificationSettings[]
 
   @@unique([oauth_provider, oauth_id])
   @@index([role])
@@ -391,8 +392,8 @@ model Notification {
   user_id    String              @db.Uuid
   type       String              @db.VarChar(50)
   channel    NotificationChannel
-  title      String              @db.VarChar(255)
-  content    String              @db.Text
+  title      String?             @db.VarChar(255)
+  content    String?             @db.Text
   status     NotificationStatus  @default(pending)
   sent_at    DateTime?
   metadata   Json?
@@ -434,4 +435,16 @@ model AuditLog {
   @@index([user_id, created_at])
   @@index([entity_type, entity_id])
   @@map("audit_logs")
+}
+
+model UserNotificationSettings {
+  id               String   @id @default(uuid()) @db.Uuid
+  user_id          String   @unique @db.Uuid
+  telegram_chat_id String?  @db.VarChar(50)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("user_notification_settings")
 }
