@@ -39,6 +39,8 @@ import { WebhookModule } from './modules/webhook/webhook.module';
           .default('development'),
         PORT: Joi.number().default(3000),
         DATABASE_URL: Joi.string().required(),
+        RESEND_API_KEY: Joi.string().required(),
+        EMAIL_FROM: Joi.string().required(),
       }),
     }),
     WinstonModule.forRoot({

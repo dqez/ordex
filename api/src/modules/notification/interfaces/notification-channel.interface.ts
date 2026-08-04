@@ -4,7 +4,7 @@ export type SendNotificationPayload = {
   userId: string;
   email?: string;
   type: string;
-  data: object;
+  data: { orderId: string; orderNumber: string; total?: string };
 };
 
 export interface NotificationChannelInterface {
