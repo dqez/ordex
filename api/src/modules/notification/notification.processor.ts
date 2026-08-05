@@ -19,7 +19,7 @@ export class NotificationProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<NotificationJobPayload>): Promise<any> {
+  async process(job: Job<NotificationJobPayload>): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { id: job.data.userId },
       include: { userNotificationSettings: true },
@@ -31,7 +31,7 @@ export class NotificationProcessor extends WorkerHost {
     const matchedChannels = this.channels.filter((channel) =>
       channel.supports(job.data.type),
     );
-    const errors: Error[] = [];
+    const errors: unknown[] = [];
 
     for (const channel of matchedChannels) {
       let pendingNotificationId: string | undefined;
@@ -75,7 +75,7 @@ export class NotificationProcessor extends WorkerHost {
             sent_at: new Date(),
           },
         });
-      } catch (error) {
+      } catch (error: unknown) {
         if (pendingNotificationId) {
           await this.prisma.notification.update({
             where: { id: pendingNotificationId },

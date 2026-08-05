@@ -117,8 +117,8 @@ export class ProductService {
       category: p.category,
       seller: { id: p.seller.id, fullName: p.seller.full_name },
       variantCount: p.productVariants.length,
-      inStock: p.productVariants.some((v) =>
-        v.inventory.some((inv) => inv.quantity - inv.reserved > 0),
+      inStock: p.productVariants.some(
+        (v) => v.inventory && v.inventory.quantity - v.inventory.reserved > 0,
       ),
     }));
 
